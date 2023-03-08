@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
 	# specify the split
 	split = config['split']
-	data_yaml = yaml.load(open('config/semantic-kitti-mos.yaml'))
+	data_yaml = yaml.load(open('config/labels/semantic-kitti-mos.yaml'),Loader=yaml.FullLoader)
 
 	# create output folder
 	seqs = []

@@ -4,10 +4,10 @@
 import argparse
 import os
 import yaml
-import __init__ as booger
+# import __init__ as booger
 
-from common.laserscan import LaserScan, SemLaserScan
-from common.laserscanvis import LaserScanVis
+from auxiliary.laserscan import LaserScan, SemLaserScan
+from auxiliary.laserscanvis import LaserScanVis
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("./visualize.py")
@@ -21,7 +21,7 @@ if __name__ == '__main__':
         '--config', '-c',
         type=str,
         required=False,
-        default="config/labels/semantic-kitti.yaml",
+        default="config/labels/semantic-kitti-mos.yaml",
         help='Dataset config file. Defaults to %(default)s',
     )
     parser.add_argument(
@@ -66,6 +66,14 @@ if __name__ == '__main__':
              ' that safety.'
              'Defaults to %(default)s',
     )
+    parser.add_argument(
+        '--clean', '-cl',
+        dest='clean',
+        default=False,
+        action='store_true',
+        help='visualize clean scan in clean_scans folder,'   
+        'Defaults to %(default)s',
+    )
     FLAGS, unparsed = parser.parse_known_args()
 
     # print summary of what we will do
@@ -78,6 +86,7 @@ if __name__ == '__main__':
     print("ignore_semantics", FLAGS.ignore_semantics)
     print("ignore_safety", FLAGS.ignore_safety)
     print("offset", FLAGS.offset)
+    print("clean", FLAGS.clean)
     print("*" * 80)
 
     # open config file
@@ -93,8 +102,12 @@ if __name__ == '__main__':
     FLAGS.sequence = '{0:02d}'.format(int(FLAGS.sequence))
 
     # does sequence folder exist?
-    scan_paths = os.path.join(FLAGS.dataset, "sequences",
+    if not FLAGS.clean:
+        scan_paths = os.path.join(FLAGS.dataset, "sequences",
                               FLAGS.sequence, "velodyne")
+    else:
+        scan_paths = os.path.join(FLAGS.dataset, "sequences",
+                              FLAGS.sequence, "clean_scans")
     if os.path.isdir(scan_paths):
         print("Sequence folder exists! Using sequence from %s" % scan_paths)
     else:

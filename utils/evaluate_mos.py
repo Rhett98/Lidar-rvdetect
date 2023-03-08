@@ -56,7 +56,7 @@ def get_args():
         '--datacfg', '-dc',
         type=str,
         required=False,
-        default="config/semantic-kitti-mos.yaml",
+        default="config/labels/semantic-kitti-mos.yaml",
         help='Dataset config file. Defaults to %(default)s',
     )
     parser.add_argument(
