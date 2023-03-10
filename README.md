@@ -12,8 +12,11 @@ python utils/evaluate_mos.py -d /home/robot/Repository/data_odometry_velodyne/da
 ## clean scan
 python utils/scan_cleaner.py  ## modify config/post-processing.yaml
 
-## viz scan(bin)
+## viz scan(clean bin)
 python utils/visualize.py -d data -s 8 -i -cl
 
 ## viz mos(bin & label)
 python utils/visualize_mos.py -d /home/robot/Repository/data_odometry_velodyne/dataset -p log -s 8
+
+## simsiam train
+python main_simsiam.py /home/robot/Repository/data_odometry_velodyne/dataset -ac config/simsiam.yml
