@@ -105,7 +105,8 @@ def main_worker(args):
 
     torch.cuda.set_device(gpu)
     model = model.cuda(gpu)
-    # print(model) # print model after SyncBatchNorm
+    print(model) # print model 
+    print('param num:', len(list(model.parameters())))
 
     # define loss function (criterion) and optimizer
     criterion = nn.CosineSimilarity(dim=1).cuda(0)

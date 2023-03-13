@@ -171,19 +171,10 @@ class UpBlock(nn.Module):
 
 class SalsaNext(nn.Module):
     # def __init__(self, nclasses, params):
-    def __init__(self, nclasses=3):
+    def __init__(self, pred_dim=256):
         super(SalsaNext, self).__init__()
-        self.nclasses = nclasses
+        self.pred_dim = pred_dim
 
-        ### mos modification
-        # if params['train']['residual']:
-        #     self.input_size = 5 + params['train']['n_input_scans']
-        
-        # else:
-        #     self.input_size = 5 * params['train']['n_input_scans']
-
-        # print("Depth of backbone input = ", self.input_size)
-        ###
         self.input_size = 1
         
         self.downCntx = ResContextBlock(self.input_size, 32)
@@ -201,10 +192,12 @@ class SalsaNext(nn.Module):
         self.upBlock3 = UpBlock(4 * 32, 2 * 32, 0.2)
         self.upBlock4 = UpBlock(2 * 32, 32, 0.2, drop_out=False)
 
-        self.logits = nn.Conv2d(32, nclasses, kernel_size=(1, 1))
+        self.avgpool = nn.AdaptiveAvgPool2d((3, 3))
+
+        self.logits = nn.Conv2d(32, self.pred_dim, kernel_size=(3,3))
 
     def forward(self, x):
-        print(x.shape)
+
         downCntx = self.downCntx(x)
         downCntx = self.downCntx2(downCntx)
         downCntx = self.downCntx3(downCntx)
@@ -219,8 +212,10 @@ class SalsaNext(nn.Module):
         up3e = self.upBlock2(up4e, down2b)
         up2e = self.upBlock3(up3e, down1b)
         up1e = self.upBlock4(up2e, down0b)
-        logits = self.logits(up1e)
+        avg = self.avgpool(up1e)
 
-        logits = logits
-        logits = F.softmax(logits, dim=1)
-        return logits
+        out = self.logits(avg)
+        out = out.view(-1, self.pred_dim)
+        # logits = F.softmax(logits, dim=1)
+        # print('logits:',logits.size())
+        return out

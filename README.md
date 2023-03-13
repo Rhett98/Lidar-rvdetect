@@ -21,3 +21,4 @@ python utils/visualize_mos.py -d /home/robot/Repository/data_odometry_velodyne/d
 ## simsiam train
 python main_simsiam.py /home/robot/Repository/data_odometry_velodyne/dataset -ac config/simsiam.yml
 python main_simsiam.py /home/robot/Repository/toydata -ac config/simsiam.yml -dc config/labels/kitti-toy.yaml
+python main_simsiam.py ../toydata -ac config/simsiam.yml -dc config/labels/kitti-toy.yaml

@@ -1,6 +1,6 @@
 import os
 import sys
-# sys.path.insert(0, '/home/robot/Repository/Lidar-inpainting/')
+sys.path.insert(0, '/home/robot/Repository/Lidar-inpainting/')
 
 import numpy as np
 import torch
@@ -187,12 +187,14 @@ class KittiRV(Dataset):
         seq, start_index = self.index_mapping[dataset_index]  # seq: '05' start_index: 1856
         current_index = start_index + self.n_input_scans - 1  # this is used for multi-scan attach
         # current_index = start_index  # this is used for multi residual images
+        if current_index > len(self.index_mapping)-1:
+            current_index = start_index
         current_pose = self.poses[seq][current_index]
         proj_full = torch.Tensor()
         # index is now looping from first scan in input sequence to current scan
-        for index in range(start_index, start_index + self.n_input_scans):
+        for index in [start_index, current_index]:
         # for index in range(start_index, start_index + 1):
-            # get item in tensor shape
+            # get item in tensor shape 
             scan_file = self.scan_files[seq][index]
             if self.gt:
                 label_file = self.label_files[seq][index]
@@ -364,15 +366,17 @@ class KittiRV(Dataset):
 if __name__ == '__main__':
     import yaml
     ARCH = yaml.safe_load(open('config/simsiam.yml', 'r'))
-    DATA = yaml.safe_load(open('config/labels/semantic-kitti-mos.yaml', 'r'))
-    data = '/home/robot/Repository/data_odometry_velodyne/dataset'
+    # DATA = yaml.safe_load(open('config/labels/semantic-kitti-mos.yaml', 'r'))
+    # data = '/home/robot/Repository/data_odometry_velodyne/dataset'
+    DATA = yaml.safe_load(open('config/labels/kitti-toy.yaml', 'r'))
+    data = '/home/robot/Repository/toydata'
     train_dataset = KittiRV('train', ARCH, DATA, data, False)
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                                 batch_size=4,
                                                 shuffle=False,
                                                 num_workers=4,
                                                 pin_memory=False,
-                                                drop_last=False)
+                                                drop_last=True)
     assert len(train_loader) > 0
     for i, proj_range in enumerate(train_loader):
         print('***************')
