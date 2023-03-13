@@ -33,15 +33,10 @@ import __init__ as booger
 from modules.simsiam import SimSiam, TwoCropsTransform, GaussianBlur
 from modules.SalsaNext_simsiam import *
 
-model_names = sorted(name for name in models.__dict__
-    if name.islower() and not name.startswith("__")
-    and callable(models.__dict__[name]))
-
 parser = argparse.ArgumentParser(description='PyTorch Training')
 parser.add_argument('data', metavar='DIR',
                     help='path to dataset')
-parser.add_argument(
-                    '--arch_cfg', '-ac',
+parser.add_argument('--arch_cfg', '-ac',
                     type=str,
                     required=True,
                     help='Architecture yaml cfg file. See'+ 
@@ -50,97 +45,24 @@ parser.add_argument('--data_cfg', '-dc',
                     type=str,
                     required=False,
                     default='config/labels/semantic-kitti-mos.yaml',
-                    help='Classification yaml cfg file. See /config/labels for sample.',)
-parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet50',
-                    choices=model_names,
-                    help='model architecture: ' +
-                        ' | '.join(model_names) +
-                        ' (default: resnet50)')
-parser.add_argument('-j', '--workers', default=1, type=int, metavar='N',
-                    help='number of data loading workers (default: 32)')
-parser.add_argument('--epochs', default=100, type=int, metavar='N',
-                    help='number of total epochs to run')
-parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
-                    help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=4, type=int,
-                    metavar='N',
-                    help='mini-batch size (default: 512), this is the total '
-                         'batch size of all GPUs on the current node when '
-                         'using Data Parallel or Distributed Data Parallel')
-parser.add_argument('--lr', '--learning-rate', default=0.05, type=float,
-                    metavar='LR', help='initial (base) learning rate', dest='lr')
-parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
-                    help='momentum of SGD solver')
-parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
-                    metavar='W', help='weight decay (default: 1e-4)',
-                    dest='weight_decay')
-parser.add_argument('-p', '--print-freq', default=10, type=int,
-                    metavar='N', help='print frequency (default: 10)')
-parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                    help='path to latest checkpoint (default: none)')
-parser.add_argument('--world-size', default=-1, type=int,
-                    help='number of nodes for distributed training')
-parser.add_argument('--rank', default=-1, type=int,
-                    help='node rank for distributed training')
-parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
-                    help='url used to set up distributed training')
-parser.add_argument('--dist-backend', default='nccl', type=str,
-                    help='distributed backend')
-parser.add_argument('--seed', default=None, type=int,
-                    help='seed for initializing training. ')
-parser.add_argument('--gpu', default=0, type=int,
-                    help='GPU id to use.')
-parser.add_argument('--multiprocessing-distributed', action='store_true',
-                    help='Use multi-processing distributed training to launch '
-                         'N processes per node, which has N GPUs. This is the '
-                         'fastest way to use PyTorch for either single node or '
-                         'multi node data parallel training')
-
-# simsiam specific configs:
-parser.add_argument('--dim', default=1024, type=int,
-                    help='feature dimension (default: 2048)')
-parser.add_argument('--pred-dim', default=256, type=int,
-                    help='hidden dimension of the predictor (default: 512)')
-parser.add_argument('--fix-pred-lr', action='store_true',
-                    help='Fix learning rate for the predictor')
+                    help='Classification yaml cfg file. See /config/'+
+                    'labels for sample.',)
 
 def main():
     args, unparsed = parser.parse_known_args()
-
-    if args.seed is not None:
-        random.seed(args.seed)
-        torch.manual_seed(args.seed)
+    seed = None
+    if seed is not None:
+        random.seed(seed)
+        torch.manual_seed(seed)
         cudnn.deterministic = True
         warnings.warn('You have chosen to seed training. '
                       'This will turn on the CUDNN deterministic setting, '
                       'which can slow down your training considerably! '
-                      'You may see unexpected behavior when restarting '
-                      'from checkpoints.')
-
-    if args.gpu is not None:
-        warnings.warn('You have chosen a specific GPU. This will completely '
-                      'disable data parallelism.')
-
-    if args.dist_url == "env://" and args.world_size == -1:
-        args.world_size = int(os.environ["WORLD_SIZE"])
-
-    args.distributed = args.world_size > 1 or args.multiprocessing_distributed
-
-    ngpus_per_node = torch.cuda.device_count()
-    if args.multiprocessing_distributed:
-        # Since we have ngpus_per_node processes per node, the total world_size
-        # needs to be adjusted accordingly
-        args.world_size = ngpus_per_node * args.world_size
-        # Use torch.multiprocessing.spawn to launch distributed processes: the
-        # main_worker process function
-        mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))
-    else:
+                      'You may see unexpected behavior when restarting ')
         # Simply call main_worker function
-        main_worker(args.gpu, ngpus_per_node, args)
+    main_worker(args)
 
-
-def main_worker(gpu, ngpus_per_node, args):
-    args.gpu = gpu
+def main_worker(args):
     # open arch config file
     try:
         print("Opening arch config file %s" % args.arch_cfg)
@@ -157,66 +79,64 @@ def main_worker(gpu, ngpus_per_node, args):
         print(e)
         print("Error opening data yaml file.")
         quit()
-    # suppress printing if not master
-    if args.multiprocessing_distributed and args.gpu != 0:
-        def print_pass(*args):
-            pass
-        builtins.print = print_pass
+     
+    workers = ARCH["train"]["workers"]
+    epochs = ARCH["train"]["max_epochs"]
+    start_epoch = 0
+    resume = None # load chechpoint path
+    gpu = 0
+    batch_size = ARCH["train"]["batch_size"]
+    lr = ARCH["train"]["lr"]
+    momentum = ARCH["train"]["momentum"]
+    w_decay = ARCH["train"]["w_decay"]
+    pred_dim = ARCH["train"]["pred_dim"]
+    dim = ARCH["train"]["dim"]
+    fix_pred_lr = ARCH["train"]["fix_pred_lr"]
 
-    if args.gpu is not None:
-        print("Use GPU: {} for training".format(args.gpu))
+    if gpu is not None:
+        print("Use GPU: {} for training".format(gpu))
 
-    if args.distributed:
-        if args.dist_url == "env://" and args.rank == -1:
-            args.rank = int(os.environ["RANK"])
-        if args.multiprocessing_distributed:
-            # For multiprocessing distributed training, rank needs to be the
-            # global rank among all the processes
-            args.rank = args.rank * ngpus_per_node + gpu
-        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                world_size=args.world_size, rank=args.rank)
-        torch.distributed.barrier()
     # create model
-    print("=> creating model '{}'".format(args.arch))
-    model = SimSiam(SalsaNext(),args.dim, args.pred_dim)
+    print("=> creating model")
+    model = SimSiam(SalsaNext(), dim, pred_dim)
 
     # infer learning rate before changing batch size
-    init_lr = args.lr * args.batch_size / 256
+    init_lr = lr * batch_size / 256
 
-    torch.cuda.set_device(args.gpu)
-    model = model.cuda(args.gpu)
-    print(model) # print model after SyncBatchNorm
+    torch.cuda.set_device(gpu)
+    model = model.cuda(gpu)
+    # print(model) # print model after SyncBatchNorm
 
     # define loss function (criterion) and optimizer
-    criterion = nn.CosineSimilarity(dim=1).cuda(args.gpu)
+    criterion = nn.CosineSimilarity(dim=1).cuda(0)
 
-    if args.fix_pred_lr:
+    if fix_pred_lr:
         optim_params = [{'params': model.module.encoder.parameters(), 'fix_lr': False},
                         {'params': model.module.predictor.parameters(), 'fix_lr': True}]
     else:
         optim_params = model.parameters()
 
     optimizer = torch.optim.SGD(optim_params, init_lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
+                                momentum=momentum,
+                                weight_decay=w_decay)
 
     # optionally resume from a checkpoint
-    if args.resume:
-        if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
-            if args.gpu is None:
-                checkpoint = torch.load(args.resume)
+    if resume:
+        if os.path.isfile(resume):
+            print("=> loading checkpoint '{}'".format(resume))
+            if gpu is None:
+                checkpoint = torch.load(resume)
             else:
                 # Map model to be loaded to specified single gpu.
-                loc = 'cuda:{}'.format(args.gpu)
-                checkpoint = torch.load(args.resume, map_location=loc)
-            args.start_epoch = checkpoint['epoch']
+                loc = 'cuda:{}'.format(gpu)
+                checkpoint = torch.load(resume, map_location=loc)
+            start_epoch = checkpoint['epoch']
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
-                  .format(args.resume, checkpoint['epoch']))
+                  .format(resume, checkpoint['epoch']))
         else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
+            print("=> no checkpoint found at '{}'".format(resume))
 
     cudnn.benchmark = True
 
@@ -245,31 +165,24 @@ def main_worker(gpu, ngpus_per_node, args):
     #     traindir,
     #     TwoCropsTransform(transforms.Compose(augmentation)))
 
-    if args.distributed:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
-    else:
-        train_sampler = None
+    train_sampler = None
 
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-        num_workers=args.workers, drop_last=True)
+        train_dataset, batch_size=batch_size, shuffle=(train_sampler is None),
+        num_workers=workers, drop_last=True)
 
-    for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            train_sampler.set_epoch(epoch)
-        adjust_learning_rate(optimizer, init_lr, epoch, args)
+    for epoch in range(start_epoch, epochs):
+        adjust_learning_rate(optimizer, init_lr, epoch, epochs)
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args)
 
-        if not args.multiprocessing_distributed or (args.multiprocessing_distributed
-                and args.rank % ngpus_per_node == 0):
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'arch': args.arch,
-                'state_dict': model.state_dict(),
-                'optimizer' : optimizer.state_dict(),
-            }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
+        save_checkpoint({
+            'epoch': epoch + 1,
+            'arch': 'salsanext',
+            'state_dict': model.state_dict(),
+            'optimizer' : optimizer.state_dict(),
+        }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
@@ -289,9 +202,9 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         # measure data loading time
         data_time.update(time.time() - end)
         image_0, image_1 = torch.split(images, 1, dim=1)
-        if args.gpu is not None:
-            image_0 = image_0.cuda(args.gpu, non_blocking=True)
-            image_1 = image_1.cuda(args.gpu, non_blocking=True)
+
+        image_0 = image_0.cuda(0, non_blocking=True)
+        image_1 = image_1.cuda(0, non_blocking=True)
 
         # compute output and loss
         p1, p2, z1, z2 = model(x1=image_0, x2=image_1)
@@ -308,7 +221,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i % args.print_freq == 0:
+        if i % 10 == 0:
             progress.display(i)
 
 
@@ -359,9 +272,9 @@ class ProgressMeter(object):
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
 
 
-def adjust_learning_rate(optimizer, init_lr, epoch, args):
+def adjust_learning_rate(optimizer, init_lr, epoch, max_epoch):
     """Decay the learning rate based on schedule"""
-    cur_lr = init_lr * 0.5 * (1. + math.cos(math.pi * epoch / args.epochs))
+    cur_lr = init_lr * 0.5 * (1. + math.cos(math.pi * epoch / max_epoch))
     for param_group in optimizer.param_groups:
         if 'fix_lr' in param_group and param_group['fix_lr']:
             param_group['lr'] = init_lr
