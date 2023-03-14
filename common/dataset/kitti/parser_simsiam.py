@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0, '/home/robot/Repository/Lidar-inpainting/')
+# sys.path.insert(0, '/home/robot/Repository/Lidar-inpainting/')
 
 import numpy as np
 import torch
@@ -72,7 +72,11 @@ class KittiRV(Dataset):
         self.split = split
         self.train_sequences=DATA["split"]["train"]
         self.valid_sequences=DATA["split"]["valid"]
-        self.test_sequences=DATA["split"]["test"],
+        self.test_sequences=DATA["split"]["test"]
+        self.labels = DATA["labels"]
+        self.color_map = DATA["color_map"]
+        self.learning_map = DATA["learning_map"]
+        self.learning_map_inv = DATA["learning_map_inv"]
         self.sensor = ARCH["dataset"]["sensor"]
         self.sensor_img_H = self.sensor["img_prop"]["height"]
         self.sensor_img_W = self.sensor["img_prop"]["width"]
@@ -111,6 +115,9 @@ class KittiRV(Dataset):
         else:
             raise ValueError("Sequences folder doesn't exist! Exiting...")
 
+        assert(isinstance(self.labels, dict))	# make sure labels is a dict
+        assert(isinstance(self.color_map, dict)) # make sure color_map is a dict
+        assert(isinstance(self.learning_map, dict)) # make sure learning_map is a dict
         assert(isinstance(self.sequences, list)) # make sure sequences is a list
         
         # placeholder for filenames
@@ -191,6 +198,7 @@ class KittiRV(Dataset):
             current_index = start_index
         current_pose = self.poses[seq][current_index]
         proj_full = torch.Tensor()
+        proj_labels_full = torch.Tensor()
         # index is now looping from first scan in input sequence to current scan
         for index in [start_index, current_index]:
         # for index in range(start_index, start_index + 1):
@@ -262,14 +270,19 @@ class KittiRV(Dataset):
             proj = torch.cat([proj_range.unsqueeze(0).clone()])
             # normal
             proj = (proj - self.sensor_img_means[0]) / self.sensor_img_stds[0]
-            # cat old proj
+            # cat old projection
             proj_full = torch.cat([proj_full, proj])
+            if self.gt:
+                proj_labels = torch.cat([proj_labels.unsqueeze(0).clone()])
+                proj_labels_full = torch.cat([proj_labels_full, proj_labels])
 
         if self.use_normal:
-            proj_full = torch.cat([proj_full, torch.from_numpy(scan.normal_map).clone().permute(2, 0, 1)]) # 5 + 3 = 8 channel
+            proj_full = torch.cat([proj_full, torch.from_numpy(scan.normal_map).clone().permute(2, 0, 1)]) 
 
         proj_cat = proj_full * proj_mask.float()
 
+        if self.gt:
+            return proj_cat, proj_labels_full
         return proj_cat
 
     def __len__(self):
@@ -369,8 +382,8 @@ if __name__ == '__main__':
     # DATA = yaml.safe_load(open('config/labels/semantic-kitti-mos.yaml', 'r'))
     # data = '/home/robot/Repository/data_odometry_velodyne/dataset'
     DATA = yaml.safe_load(open('config/labels/kitti-toy.yaml', 'r'))
-    data = '/home/robot/Repository/toydata'
-    train_dataset = KittiRV('train', ARCH, DATA, data, False)
+    data = '/home/robot/Repository/MotionSeg3D/data/toydata'
+    train_dataset = KittiRV('train', ARCH, DATA, data, True)
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                                 batch_size=4,
                                                 shuffle=False,
@@ -378,7 +391,8 @@ if __name__ == '__main__':
                                                 pin_memory=False,
                                                 drop_last=True)
     assert len(train_loader) > 0
-    for i, proj_range in enumerate(train_loader):
+    for i, (proj_range, p_label) in enumerate(train_loader):
         print('***************')
         a ,b = torch.split(proj_range, 1, dim=1)
         print(a.shape, b.shape)
+        print(p_label.shape)
