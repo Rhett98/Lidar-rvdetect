@@ -6,7 +6,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
-import builtins
 import math
 import os
 import random
@@ -15,19 +14,16 @@ import time
 import warnings
 import imp
 import yaml
+import datetime
 
 import torch
 import torch.nn as nn
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
-import torch.distributed as dist
 import torch.optim
-import torch.multiprocessing as mp
 import torch.utils.data
 import torch.utils.data.distributed
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
-import torchvision.models as models
+from torch.cuda.amp import autocast, grad_scaler
 
 import __init__ as booger
 from modules.SalsaNext_simsiam import *
@@ -105,12 +101,13 @@ def main_worker(args):
 
     torch.cuda.set_device(gpu)
     model = model.cuda(gpu)
+    model.half()
     # print(model) # print model 
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("Total of Trainable Parameters: {}".format(pytorch_total_params))
 
     # define loss function (criterion) and optimizer
-    criterion = nn.CosineSimilarity(dim=1).cuda(0)
+    criterion = nn.CosineSimilarity(dim=1).cuda(0).half()
 
     if fix_pred_lr:
         optim_params = [{'params': model.module.encoder.parameters(), 'fix_lr': False},
@@ -142,24 +139,6 @@ def main_worker(args):
 
     cudnn.benchmark = True
 
-    # Data loading code
-    # traindir = os.path.join(args.data, 'train')
-    # normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-    #                                  std=[0.229, 0.224, 0.225])
-
-    # MoCo v2's aug: similar to SimCLR https://arxiv.org/abs/2002.05709
-    # augmentation = [
-    #     transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
-    #     transforms.RandomApply([
-    #         transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
-    #     ], p=0.8),
-    #     transforms.RandomGrayscale(p=0.2),
-    #     transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
-    #     transforms.RandomHorizontalFlip(),
-    #     transforms.ToTensor(),
-    #     normalize
-    # ]
-
     parserModule = imp.load_source("parserModule",
                                        f"{booger.TRAIN_PATH}/common/dataset/{DATA['name']}/parser_simsiam.py")
     train_dataset = parserModule.KittiRV('train', ARCH, DATA, args.data,
@@ -175,17 +154,18 @@ def main_worker(args):
         adjust_learning_rate(optimizer, init_lr, epoch, epochs)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, args)
+        train(train_loader, model, criterion, optimizer, epoch, epochs)
 
-        save_checkpoint({
-            'epoch': epoch + 1,
-            'arch': 'salsanext',
-            'state_dict': model.state_dict(),
-            'optimizer' : optimizer.state_dict(),
-        }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
+        if epoch % 5 == 0:
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'arch': 'salsanext',
+                'state_dict': model.state_dict(),
+                'optimizer' : optimizer.state_dict(),
+            }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
 
 
-def train(train_loader, model, criterion, optimizer, epoch, args):
+def train(train_loader, model, criterion, optimizer, epoch, max_epoch):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4f')
@@ -201,17 +181,17 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
     for i, images in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
-        print(images.shape)
+
         image_0, image_1 = torch.split(images, 10, dim=1)
 
-        image_0 = image_0.cuda(0, non_blocking=True)
-        image_1 = image_1.cuda(0, non_blocking=True)
+        image_0 = image_0.cuda(0, non_blocking=True).half()
+        image_1 = image_1.cuda(0, non_blocking=True).half()
 
-        # compute output and loss
-        p1, p2, z1, z2 = model(x1=image_0, x2=image_1)
-        loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
-
-        losses.update(loss.item(), image_0.size(0))
+        with autocast():
+            # compute output and loss
+            p1, p2, z1, z2 = model(x1=image_0, x2=image_1)
+            loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
+            losses.update(loss.item(), image_0.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -224,7 +204,11 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         if i % 10 == 0:
             progress.display(i)
+            print('train time left: ',calculate_estimate(max_epoch,epoch,i,len(train_loader),data_time.avg, batch_time.avg))
 
+def calculate_estimate(max_epoch, epoch, iter, len_data, data_time_t, batch_time_t):
+        estimate = int((data_time_t + batch_time_t) * (len_data * max_epoch - (iter + 1 + epoch * len_data)))
+        return str(datetime.timedelta(seconds=estimate))
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)

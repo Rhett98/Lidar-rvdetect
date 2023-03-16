@@ -217,6 +217,57 @@ class SalsaNext(nn.Module):
 
         out = self.logits(avg)
         out = out.view(-1, self.pred_dim)
-        print('out', out.shape)
+        # print('out', out.shape)
+        
+        return out
+
+class SalsaNextMobile(nn.Module):
+    def __init__(self, input_size=10, pred_dim=256):
+        super(SalsaNextMobile, self).__init__()
+        self.pred_dim = pred_dim
+
+        self.input_size = input_size
+        
+        self.downCntx = ResContextBlock(self.input_size, 32)
+        self.downCntx2 = ResContextBlock(32, 32)
+        self.downCntx3 = ResContextBlock(32, 32)
+
+        self.resBlock1 = ResBlock(32, 2 * 32, 0.2, pooling=True, drop_out=False)
+        self.resBlock2 = ResBlock(2 * 32, 2 * 2 * 32, 0.2, pooling=True)
+        self.resBlock3 = ResBlock(2 * 2 * 32, 2 * 4 * 32, 0.2, pooling=True)
+        # self.resBlock4 = ResBlock(2 * 4 * 32, 2 * 4 * 32, 0.2, pooling=True)
+        self.resBlock5 = ResBlock(2 * 4 * 32, 2 * 4 * 32, 0.2, pooling=False)
+
+        self.upBlock1 = UpBlock(2 * 4 * 32, 4 * 32, 0.2)
+        self.upBlock2 = UpBlock(4 * 32, 4 * 32, 0.2)
+        self.upBlock3 = UpBlock(4 * 32, 2 * 32, 0.2)
+        self.upBlock4 = UpBlock(2 * 32, 32, 0.2, drop_out=False)
+
+        self.avgpool = nn.AdaptiveAvgPool2d((3, 3))
+
+        self.logits = nn.Conv2d(256, self.pred_dim, kernel_size=(3,3))
+
+    def forward(self, x):
+
+        downCntx = self.downCntx(x)
+        downCntx = self.downCntx2(downCntx)
+        downCntx = self.downCntx3(downCntx)
+
+        down0c, down0b = self.resBlock1(downCntx)
+        down1c, down1b = self.resBlock2(down0c)
+        down2c, down2b = self.resBlock3(down1c)
+        # down3c, down3b = self.resBlock4(down2c)
+        down5c = self.resBlock5(down2c)
+
+        # up4e = self.upBlock1(down5c,down3b)
+        # up3e = self.upBlock2(up4e, down2b)
+        # up2e = self.upBlock3(up3e, down1b)
+        # up1e = self.upBlock4(up2e, down0b)
+        # avg = self.avgpool(up1e)
+        avg = self.avgpool(down5c)
+
+        out = self.logits(avg)
+        out = out.view(-1, self.pred_dim)
+        # print('out', out.shape)
         
         return out
