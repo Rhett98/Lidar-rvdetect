@@ -30,8 +30,8 @@ import torchvision.datasets as datasets
 import torchvision.models as models
 
 import __init__ as booger
-from modules.simsiam import SimSiam, TwoCropsTransform, GaussianBlur
 from modules.SalsaNext_simsiam import *
+from modules.simsiam import *
 
 parser = argparse.ArgumentParser(description='PyTorch Training')
 parser.add_argument('data', metavar='DIR',
@@ -105,8 +105,9 @@ def main_worker(args):
 
     torch.cuda.set_device(gpu)
     model = model.cuda(gpu)
-    print(model) # print model 
-    print('param num:', len(list(model.parameters())))
+    # print(model) # print model 
+    pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print("Total of Trainable Parameters: {}".format(pytorch_total_params))
 
     # define loss function (criterion) and optimizer
     criterion = nn.CosineSimilarity(dim=1).cuda(0)
@@ -142,29 +143,27 @@ def main_worker(args):
     cudnn.benchmark = True
 
     # Data loading code
-    traindir = os.path.join(args.data, 'train')
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+    # traindir = os.path.join(args.data, 'train')
+    # normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+    #                                  std=[0.229, 0.224, 0.225])
 
     # MoCo v2's aug: similar to SimCLR https://arxiv.org/abs/2002.05709
-    augmentation = [
-        transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
-        transforms.RandomApply([
-            transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
-        ], p=0.8),
-        transforms.RandomGrayscale(p=0.2),
-        transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        normalize
-    ]
+    # augmentation = [
+    #     transforms.RandomResizedCrop(224, scale=(0.2, 1.)),
+    #     transforms.RandomApply([
+    #         transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
+    #     ], p=0.8),
+    #     transforms.RandomGrayscale(p=0.2),
+    #     transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
+    #     transforms.RandomHorizontalFlip(),
+    #     transforms.ToTensor(),
+    #     normalize
+    # ]
 
     parserModule = imp.load_source("parserModule",
                                        f"{booger.TRAIN_PATH}/common/dataset/{DATA['name']}/parser_simsiam.py")
-    train_dataset = parserModule.KittiRV('train', ARCH, DATA, args.data)
-    # train_dataset = datasets.ImageFolder(
-    #     traindir,
-    #     TwoCropsTransform(transforms.Compose(augmentation)))
+    train_dataset = parserModule.KittiRV('train', ARCH, DATA, args.data,
+                                        gt=False,transform=False,drop_few_static_frames=True)
 
     train_sampler = None
 
@@ -202,7 +201,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
     for i, images in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
-        image_0, image_1 = torch.split(images, 1, dim=1)
+        print(images.shape)
+        image_0, image_1 = torch.split(images, 10, dim=1)
 
         image_0 = image_0.cuda(0, non_blocking=True)
         image_1 = image_1.cuda(0, non_blocking=True)

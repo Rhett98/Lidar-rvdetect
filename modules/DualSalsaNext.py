@@ -169,13 +169,16 @@ class UpBlock(nn.Module):
         return upE
 
 
-class SalsaNext(nn.Module):
-    # def __init__(self, nclasses, params):
-    def __init__(self, input_size=10, pred_dim=256):
-        super(SalsaNext, self).__init__()
-        self.pred_dim = pred_dim
+class DualSalsaNext(nn.Module):
+    def __init__(self, nclasses, params):
+        super(DualSalsaNext, self).__init__()
+        self.nclasses = nclasses
 
-        self.input_size = input_size
+        ### mos modification
+        self.input_size = 2
+
+        print("Depth of backbone input = ", self.input_size)
+        ###
         
         self.downCntx = ResContextBlock(self.input_size, 32)
         self.downCntx2 = ResContextBlock(32, 32)
@@ -192,12 +195,9 @@ class SalsaNext(nn.Module):
         self.upBlock3 = UpBlock(4 * 32, 2 * 32, 0.2)
         self.upBlock4 = UpBlock(2 * 32, 32, 0.2, drop_out=False)
 
-        self.avgpool = nn.AdaptiveAvgPool2d((3, 3))
-
-        self.logits = nn.Conv2d(256, self.pred_dim, kernel_size=(3,3))
+        self.logits = nn.Conv2d(32, nclasses, kernel_size=(1, 1))
 
     def forward(self, x):
-
         downCntx = self.downCntx(x)
         downCntx = self.downCntx2(downCntx)
         downCntx = self.downCntx3(downCntx)
@@ -208,15 +208,12 @@ class SalsaNext(nn.Module):
         down3c, down3b = self.resBlock4(down2c)
         down5c = self.resBlock5(down3c)
 
-        # up4e = self.upBlock1(down5c,down3b)
-        # up3e = self.upBlock2(up4e, down2b)
-        # up2e = self.upBlock3(up3e, down1b)
-        # up1e = self.upBlock4(up2e, down0b)
-        # avg = self.avgpool(up1e)
-        avg = self.avgpool(down5c)
+        up4e = self.upBlock1(down5c,down3b)
+        up3e = self.upBlock2(up4e, down2b)
+        up2e = self.upBlock3(up3e, down1b)
+        up1e = self.upBlock4(up2e, down0b)
+        logits = self.logits(up1e)
 
-        out = self.logits(avg)
-        out = out.view(-1, self.pred_dim)
-        print('out', out.shape)
-        
-        return out
+        logits = logits
+        logits = F.softmax(logits, dim=1)
+        return logits

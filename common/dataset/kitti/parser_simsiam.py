@@ -97,8 +97,11 @@ class KittiRV(Dataset):
         dataset_index = 0
         # added this for dynamic object removal
         self.n_input_scans = self.sensor["n_input_scans"]  # This needs to be the same as in arch_cfg.yaml!
+        self.use_residual = self.sensor["residual"]
         self.transform_mod = self.sensor["transform"]
         self.use_normal = self.sensor["use_normal"] if 'use_normal' in self.sensor.keys() else False
+        # number of classes that matters is the one for xentropy
+        self.nclasses = len(self.learning_map_inv)
         """"""
         
         if self.split == 'train':
@@ -107,7 +110,8 @@ class KittiRV(Dataset):
             self.sequences = self.valid_sequences
         elif self.split == 'test':
             self.sequences = self.test_sequences
-            
+        else:
+            raise ValueError("Spilt should choose from train valid test! Exiting...")
         # sanity checks
         # make sure directory exists
         if os.path.isdir(self.root):
@@ -124,6 +128,9 @@ class KittiRV(Dataset):
         self.scan_files = {}
         self.label_files = {}
         self.poses = {}
+        if self.use_residual:
+            for i in range(self.n_input_scans):
+                exec("self.residual_files_" + str(str(i+1)) + " = {}")
 
         # fill in with names, checking that all sequences are complete
         for seq in self.sequences:
@@ -133,12 +140,22 @@ class KittiRV(Dataset):
             # get paths for each
             scan_path = os.path.join(self.root, seq, "velodyne")
             label_path = os.path.join(self.root, seq, "labels")
+            if self.use_residual:
+                for i in range(self.n_input_scans):
+                    folder_name = "residual_images_" + str(i+1)
+                    exec("residual_path_" + str(i+1) + " = os.path.join(self.root, seq, folder_name)")
 
             # get files
             scan_files = [os.path.join(dp, f) for dp, dn, fn in os.walk(
                     os.path.expanduser(scan_path)) for f in fn if is_scan(f)]
             label_files = [os.path.join(dp, f) for dp, dn, fn in os.walk(
                     os.path.expanduser(label_path)) for f in fn if is_label(f)]
+
+            if self.use_residual:
+                for i in range(self.n_input_scans):
+                    exec("residual_files_" + str(i+1) + " = " + '[os.path.join(dp, f) for dp, dn, fn in '
+                             'os.walk(os.path.expanduser(residual_path_' + str(i+1) + '))'
+                             ' for f in fn if is_residual(f)]')
 
             ### Get poses and transform them to LiDAR coord frame for transforming point clouds
             # load poses
@@ -181,6 +198,11 @@ class KittiRV(Dataset):
             self.scan_files[seq] = scan_files
             self.label_files[seq] = label_files
 
+            if self.use_residual:
+                for i in range(self.n_input_scans):
+                    exec("residual_files_" + str(i+1) + ".sort()")
+                    exec("self.residual_files_" + str(i+1) + "[seq]" + " = " + "residual_files_" + str(i+1))
+
         print(f"\033[32m There are {self.dataset_size} frames in total. \033[0m")
         if drop_few_static_frames:
             self.remove_few_static_frames()
@@ -206,6 +228,9 @@ class KittiRV(Dataset):
             scan_file = self.scan_files[seq][index]
             if self.gt:
                 label_file = self.label_files[seq][index]
+            if self.use_residual:
+                for i in range(self.n_input_scans):
+                    exec("residual_file_" + str(i+1) + " = " + "self.residual_files_" + str(i+1) + "[seq][index]")
 
             index_pose = self.poses[seq][index]
 
@@ -250,40 +275,104 @@ class KittiRV(Dataset):
             # open and obtain (transformed) scan
             scan.open_scan(scan_file, index_pose, current_pose, if_transform=self.transform_mod)
 
+        #     if self.gt:
+        #         scan.open_label(label_file)
+        #         # map unused classes to used classes (also for projection)
+        #         scan.sem_label = self.map(scan.sem_label, self.learning_map)
+        #         scan.proj_sem_label = self.map(scan.proj_sem_label, self.learning_map)
+
+        #     # get points and labels
+        #     proj_range = torch.from_numpy(scan.proj_range).clone()
+        #     # proj_xyz = torch.from_numpy(scan.proj_xyz).clone()
+        #     # proj_remission = torch.from_numpy(scan.proj_remission).clone()
+        #     proj_mask = torch.from_numpy(scan.proj_mask)
+        #     if self.gt:
+        #         proj_labels = torch.from_numpy(scan.proj_sem_label).clone()
+        #         proj_labels = proj_labels * proj_mask
+        #     else:
+        #         proj_labels = []
+
+        #     proj = torch.cat([proj_range.unsqueeze(0).clone()])
+        #     # normal
+        #     proj = (proj - self.sensor_img_means[0]) / self.sensor_img_stds[0]
+        #     # cat old projection
+        #     proj_full = torch.cat([proj_full, proj])
+        #     # if self.gt:
+        #         # proj_labels = torch.cat([proj_labels.unsqueeze(0).clone()])
+        #         # proj_labels_full = torch.cat([proj_labels_full, proj_labels])
+
+
+        # if self.use_normal:
+        #     proj_full = torch.cat([proj_full, torch.from_numpy(scan.normal_map).clone().permute(2, 0, 1)]) 
+
+        # proj_cat = proj_full * proj_mask.float()
+        # if self.gt:
+        #     # return proj_cat, proj_labels_full
+        #     return proj_cat, proj_labels
+        # return proj_cat
             if self.gt:
-                scan.open_label(label_file)
-                # map unused classes to used classes (also for projection)
-                scan.sem_label = self.map(scan.sem_label, self.learning_map)
-                scan.proj_sem_label = self.map(scan.proj_sem_label, self.learning_map)
+                    scan.open_label(label_file)
+                    # map unused classes to used classes (also for projection)
+                    scan.sem_label = self.map(scan.sem_label, self.learning_map)
+                    scan.proj_sem_label = self.map(scan.proj_sem_label, self.learning_map)
+
+            # make a tensor of the uncompressed data (with the max num points)
+            unproj_n_points = scan.points.shape[0]
+            unproj_xyz = torch.full((self.max_points, 3), -1.0, dtype=torch.float)
+            unproj_xyz[:unproj_n_points] = torch.from_numpy(scan.points)
+            unproj_range = torch.full([self.max_points], -1.0, dtype=torch.float)
+            unproj_range[:unproj_n_points] = torch.from_numpy(scan.unproj_range)
+            unproj_remissions = torch.full([self.max_points], -1.0, dtype=torch.float)
+            unproj_remissions[:unproj_n_points] = torch.from_numpy(scan.remissions)
+            if self.gt:
+                unproj_labels = torch.full([self.max_points], -1.0, dtype=torch.int32)
+                unproj_labels[:unproj_n_points] = torch.from_numpy(scan.sem_label)
+            else:
+                unproj_labels = []
 
             # get points and labels
             proj_range = torch.from_numpy(scan.proj_range).clone()
-            # proj_xyz = torch.from_numpy(scan.proj_xyz).clone()
-            # proj_remission = torch.from_numpy(scan.proj_remission).clone()
+            proj_xyz = torch.from_numpy(scan.proj_xyz).clone()
+            proj_remission = torch.from_numpy(scan.proj_remission).clone()
             proj_mask = torch.from_numpy(scan.proj_mask)
             if self.gt:
                 proj_labels = torch.from_numpy(scan.proj_sem_label).clone()
                 proj_labels = proj_labels * proj_mask
             else:
                 proj_labels = []
+            proj_x = torch.full([self.max_points], -1, dtype=torch.long)
+            proj_x[:unproj_n_points] = torch.from_numpy(scan.proj_x)
+            proj_y = torch.full([self.max_points], -1, dtype=torch.long)
+            proj_y[:unproj_n_points] = torch.from_numpy(scan.proj_y)
 
-            proj = torch.cat([proj_range.unsqueeze(0).clone()])
-            # normal
-            proj = (proj - self.sensor_img_means[0]) / self.sensor_img_stds[0]
-            # cat old projection
+            proj = torch.cat([proj_range.unsqueeze(0).clone(),      # torch.Size([1, 64, 2048])
+                              proj_xyz.clone().permute(2, 0, 1),    # torch.Size([3, 64, 2048])
+                               proj_remission.unsqueeze(0).clone()]) # torch.Size([1, 64, 2048])
+            proj = (proj - self.sensor_img_means[:, None, None]) / self.sensor_img_stds[:, None, None]
+
             proj_full = torch.cat([proj_full, proj])
-            if self.gt:
-                proj_labels = torch.cat([proj_labels.unsqueeze(0).clone()])
-                proj_labels_full = torch.cat([proj_labels_full, proj_labels])
+            proj_range = torch.cat([proj_range.unsqueeze(0).clone()])
+
+            if self.use_residual:
+                for i in range(self.n_input_scans):
+                    exec("proj_residuals_" + str(i+1) + " = torch.Tensor(np.load(residual_file_" + str(i+1) + "))")
 
         if self.use_normal:
-            proj_full = torch.cat([proj_full, torch.from_numpy(scan.normal_map).clone().permute(2, 0, 1)]) 
+            proj_full = torch.cat([proj_full, torch.from_numpy(scan.normal_map).clone().permute(2, 0, 1)]) # 5 + 3 = 8 channel
+            # proj_full = torch.cat([proj_full, proj_xyz.clone().permute(2, 0, 1)]) # 5 + 3 = 8 channel
 
-        proj_cat = proj_full * proj_mask.float()
+        # add residual channel
+        if self.use_residual:
+            for i in range(self.n_input_scans):
+                proj_full = torch.cat([proj_full, torch.unsqueeze(eval("proj_residuals_" + str(i+1)), 0)])
 
+        proj_full = proj_full * proj_mask.float()
         if self.gt:
-            return proj_cat, proj_labels_full
-        return proj_cat
+            # return proj_cat, proj_labels_full
+            return proj_full, proj_labels
+        return proj_full
+
+        
 
     def __len__(self):
         return self.dataset_size
@@ -313,6 +402,39 @@ class KittiRV(Dataset):
                 print("Wrong key ", key)
         # do the mapping
         return lut[label]
+
+
+    def get_train_size(self):
+        return self.dataset_size
+
+    def get_valid_size(self):
+        return self.dataset_size
+
+    def get_test_size(self):
+        return self.dataset_size
+
+    def get_n_classes(self):
+        return self.nclasses
+
+    def get_original_class_string(self, idx):
+        return self.labels[idx]
+
+    def get_xentropy_class_string(self, idx):
+        return self.labels[self.learning_map_inv[idx]]
+
+    def to_original(self, label):
+        # put label in original values
+        return KittiRV.map(label, self.learning_map_inv)
+
+    def to_xentropy(self, label):
+        # put label in xentropy values
+        return KittiRV.map(label, self.learning_map)
+
+    def to_color(self, label):
+        # put label in original values
+        label = KittiRV.map(label, self.learning_map_inv)
+        # put label in color
+        return KittiRV.map(label, self.color_map)
 
     def remove_few_static_frames(self):
         # Developed by Jiadai Sun 2021-11-07
@@ -382,8 +504,8 @@ if __name__ == '__main__':
     # DATA = yaml.safe_load(open('config/labels/semantic-kitti-mos.yaml', 'r'))
     # data = '/home/robot/Repository/data_odometry_velodyne/dataset'
     DATA = yaml.safe_load(open('config/labels/kitti-toy.yaml', 'r'))
-    data = '/home/robot/Repository/MotionSeg3D/data/toydata'
-    train_dataset = KittiRV('train', ARCH, DATA, data, True)
+    data = '/home/robot/Repository/data_odometry_velodyne/dataset'
+    train_dataset = KittiRV('train', ARCH, DATA, data, True, False, True)
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                                 batch_size=4,
                                                 shuffle=False,
@@ -391,8 +513,9 @@ if __name__ == '__main__':
                                                 pin_memory=False,
                                                 drop_last=True)
     assert len(train_loader) > 0
-    for i, (proj_range, p_label) in enumerate(train_loader):
+    for i, (proj_full, p_label) in enumerate(train_loader):
         print('***************')
-        a ,b = torch.split(proj_range, 1, dim=1)
+        a, b = torch.split(proj_full, 10, dim=1)
         print(a.shape, b.shape)
+        print(proj_full.shape)
         print(p_label.shape)

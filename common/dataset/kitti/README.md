@@ -2,7 +2,6 @@
 
 ## train
 python train.py -d /home/robot/Repository/data_odometry_velodyne/dataset -ac /home/robot/Repository/Lidar-inpainting/config/salsanext_mos.yml
-python train_dual.py -d /home/robot/Repository/data_odometry_velodyne/dataset -ac /home/robot/Repository/Lidar-inpainting/config/dualrv.yml
 
 ## infer
 python infer.py -d /home/robot/Repository/data_odometry_velodyne/dataset -m data/model_salsanext_residual_1 -l log -s valid
@@ -19,11 +18,6 @@ python utils/visualize.py -d data -s 8 -i -cl
 ## viz mos(bin & label)
 python utils/visualize_mos.py -d /home/robot/Repository/data_odometry_velodyne/dataset -p log -s 8
 
-## gen res image
-python utils/auto_gen_residual_images.py
-
 ## simsiam train
 python main_simsiam.py /home/robot/Repository/data_odometry_velodyne/dataset -ac config/simsiam.yml
 python main_simsiam.py /home/robot/Repository/toydata -ac config/simsiam.yml -dc config/labels/kitti-toy.yaml
-
-python main_simsiam.py ../dataset -ac config/simsiam.yml -dc config/labels/semantic-kitti-mos.yaml
