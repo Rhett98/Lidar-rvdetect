@@ -148,7 +148,7 @@ def main_worker(args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=batch_size, shuffle=(train_sampler is None),
-        num_workers=workers, drop_last=True)
+        num_workers=workers, drop_last=True, pin_memory=True, prefetch_factor=True)
 
     for epoch in range(start_epoch, epochs):
         adjust_learning_rate(optimizer, init_lr, epoch, epochs)
@@ -156,7 +156,7 @@ def main_worker(args):
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, epochs)
 
-        if epoch % 5 == 0:
+        if epoch % 3 == 0:
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': 'salsanext',
