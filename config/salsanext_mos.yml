@@ -10,10 +10,10 @@ train:
   lr_decay: 0.99         # learning rate decay per epoch after initial cycle (from min lr)
   w_decay: 0.0001        # weight decay
   batch_size: 2          # batch size
-  report_batch: 10       # every x batches, report loss
+  report_batch: 5       # every x batches, report loss
   report_epoch: 2        # every x epochs, report validation set
   epsilon_w: 0.001       # class weight w = 1 / (content + epsilon_w)
-  save_summary: False    # Summary of weight histograms for tensorboard
+  save_summary: True    # Summary of weight histograms for tensorboard
   save_scans: False       # False doesn't save anything, True saves some
     # sample images (one per batch of the last calculated batch)
   # in log folder
@@ -22,7 +22,7 @@ train:
   
   # for mos
   residual: True # This needs to be the same as in the dataset params below!
-  n_input_scans: 2 # This needs to be the same as in the dataset params below!
+  n_input_scans: 1 # This needs to be the same as in the dataset params below!
 
 ################################################################################
 # postproc parameters
@@ -70,7 +70,7 @@ dataset:
       - 0.16
       
     # for mos
-    n_input_scans: 2 # This needs to be the same as in the backbone params above!
+    n_input_scans: 1 # This needs to be the same as in the backbone params above!
     residual: True   # This needs to be the same as in the backbone params above!
     transform: False # tranform the last n_input_scans - 1 frames before concatenation
     use_normal: False # if use normal vector as channels of range image
