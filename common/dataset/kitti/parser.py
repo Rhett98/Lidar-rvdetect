@@ -1,4 +1,6 @@
 import os
+import sys
+# sys.path.insert(0, '/home/robot/Repository/Lidar-inpainting/')
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -649,3 +651,33 @@ class Parser():
         label = SemanticKitti.map(label, self.learning_map_inv)
         # put label in color
         return SemanticKitti.map(label, self.color_map)
+
+
+if __name__ == '__main__':
+    import yaml
+    from tqdm import tqdm
+    ARCH = yaml.safe_load(open('config/simsiam.yml', 'r'))
+    DATA = yaml.safe_load(open('config/labels/semantic-kitti-mos.yaml', 'r'))
+    data = '../dataset'
+    # DATA = yaml.safe_load(open('config/labels/kitti-toy.yaml', 'r'))
+    # data = '/home/robot/Repository/data_odometry_velodyne/dataset'
+    train_dataset = Parser(root=data,
+                            train_sequences=DATA["split"]["train"],
+                            valid_sequences=DATA["split"]["valid"],
+                            test_sequences=None,
+                            split='train',
+                            labels=DATA["labels"],
+                            color_map=DATA["color_map"],
+                            learning_map=DATA["learning_map"],
+                            learning_map_inv=DATA["learning_map_inv"],
+                            sensor=ARCH["dataset"]["sensor"],
+                            max_points=ARCH["dataset"]["max_points"],
+                            batch_size=ARCH["train"]["batch_size"],
+                            workers=ARCH["train"]["workers"],
+                            gt=True,
+                            shuffle_train=True)
+    train_loader = train_dataset.get_train_set()
+    assert len(train_loader) > 0
+    for i, (in_vol, proj_mask, proj_labels, _, path_seq, path_name, _, _, _, _, _, _, _, _, _) in tqdm(enumerate(train_loader)):
+        a = i
+        

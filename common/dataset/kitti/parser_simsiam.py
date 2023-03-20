@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0, '/home/robot/Repository/Lidar-inpainting/')
+# sys.path.insert(0, '/home/robot/Repository/Lidar-inpainting/')
 
 import numpy as np
 import torch
@@ -500,9 +500,10 @@ class KittiRV(Dataset):
 
 if __name__ == '__main__':
     import yaml
+    from tqdm import tqdm
     ARCH = yaml.safe_load(open('config/simsiam.yml', 'r'))
     DATA = yaml.safe_load(open('config/labels/semantic-kitti-mos.yaml', 'r'))
-    data = '/home/robot/Repository/data_odometry_velodyne/dataset'
+    data = '/home/robot/Repository/dataset'
     # DATA = yaml.safe_load(open('config/labels/kitti-toy.yaml', 'r'))
     # data = '/home/robot/Repository/data_odometry_velodyne/dataset'
     train_dataset = KittiRV('train', ARCH, DATA, data, True, False, True)
@@ -513,9 +514,5 @@ if __name__ == '__main__':
                                                 pin_memory=False,
                                                 drop_last=True)
     assert len(train_loader) > 0
-    for i, (proj_full, p_label) in enumerate(train_loader):
-        print('***************')
-        a, b = torch.split(proj_full, 10, dim=1)
-        print(a.shape, b.shape)
-        print(proj_full.shape)
-        print(p_label.shape)
+    for i, (proj_full, p_label) in tqdm(enumerate(train_loader)):
+        a =i
