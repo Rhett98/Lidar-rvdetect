@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from modules.simsiam import *
+
 class ResContextBlock(nn.Module):
     def __init__(self, in_filters, out_filters):
         super(ResContextBlock, self).__init__()
@@ -170,11 +172,9 @@ class UpBlock(nn.Module):
 
 
 class SalsaNext(nn.Module):
-    # def __init__(self, nclasses, params):
-    def __init__(self, input_size=10, pred_dim=256):
+    def __init__(self, input_size=10, nclasses=3):
         super(SalsaNext, self).__init__()
-        self.pred_dim = pred_dim
-
+        self.nclasses = nclasses
         self.input_size = input_size
         
         self.downCntx = ResContextBlock(self.input_size, 32)
@@ -192,12 +192,9 @@ class SalsaNext(nn.Module):
         self.upBlock3 = UpBlock(4 * 32, 2 * 32, 0.2)
         self.upBlock4 = UpBlock(2 * 32, 32, 0.2, drop_out=False)
 
-        self.avgpool = nn.AdaptiveAvgPool2d((3, 3))
-
-        self.logits = nn.Conv2d(256, self.pred_dim, kernel_size=(3,3))
+        self.logits = nn.Conv2d(32, self.nclasses, kernel_size=(1, 1))
 
     def forward(self, x):
-
         downCntx = self.downCntx(x)
         downCntx = self.downCntx2(downCntx)
         downCntx = self.downCntx3(downCntx)
@@ -208,22 +205,19 @@ class SalsaNext(nn.Module):
         down3c, down3b = self.resBlock4(down2c)
         down5c = self.resBlock5(down3c)
 
-        # up4e = self.upBlock1(down5c,down3b)
-        # up3e = self.upBlock2(up4e, down2b)
-        # up2e = self.upBlock3(up3e, down1b)
-        # up1e = self.upBlock4(up2e, down0b)
-        # avg = self.avgpool(up1e)
-        avg = self.avgpool(down5c)
+        up4e = self.upBlock1(down5c,down3b)
+        up3e = self.upBlock2(up4e, down2b)
+        up2e = self.upBlock3(up3e, down1b)
+        up1e = self.upBlock4(up2e, down0b)
+        logits = self.logits(up1e)
 
-        out = self.logits(avg)
-        out = out.view(-1, self.pred_dim)
-        # print('out', out.shape)
-        
-        return out
+        logits = logits
+        logits = F.softmax(logits, dim=1)
+        return logits
 
-class SalsaNextMobile(nn.Module):
+class SalsaNextEncoder(nn.Module):
     def __init__(self, input_size=10, pred_dim=256):
-        super(SalsaNextMobile, self).__init__()
+        super(SalsaNextEncoder, self).__init__()
         self.pred_dim = pred_dim
 
         self.input_size = input_size
@@ -235,13 +229,8 @@ class SalsaNextMobile(nn.Module):
         self.resBlock1 = ResBlock(32, 2 * 32, 0.2, pooling=True, drop_out=False)
         self.resBlock2 = ResBlock(2 * 32, 2 * 2 * 32, 0.2, pooling=True)
         self.resBlock3 = ResBlock(2 * 2 * 32, 2 * 4 * 32, 0.2, pooling=True)
-        # self.resBlock4 = ResBlock(2 * 4 * 32, 2 * 4 * 32, 0.2, pooling=True)
+        self.resBlock4 = ResBlock(2 * 4 * 32, 2 * 4 * 32, 0.2, pooling=True)
         self.resBlock5 = ResBlock(2 * 4 * 32, 2 * 4 * 32, 0.2, pooling=False)
-
-        self.upBlock1 = UpBlock(2 * 4 * 32, 4 * 32, 0.2)
-        self.upBlock2 = UpBlock(4 * 32, 4 * 32, 0.2)
-        self.upBlock3 = UpBlock(4 * 32, 2 * 32, 0.2)
-        self.upBlock4 = UpBlock(2 * 32, 32, 0.2, drop_out=False)
 
         self.avgpool = nn.AdaptiveAvgPool2d((3, 3))
 
@@ -253,21 +242,76 @@ class SalsaNextMobile(nn.Module):
         downCntx = self.downCntx2(downCntx)
         downCntx = self.downCntx3(downCntx)
 
-        down0c, down0b = self.resBlock1(downCntx)
-        down1c, down1b = self.resBlock2(down0c)
-        down2c, down2b = self.resBlock3(down1c)
-        # down3c, down3b = self.resBlock4(down2c)
-        down5c = self.resBlock5(down2c)
+        down0c, _ = self.resBlock1(downCntx)
+        down1c, _ = self.resBlock2(down0c)
+        down2c, _ = self.resBlock3(down1c)
+        down3c, _ = self.resBlock4(down2c)
+        down5c = self.resBlock5(down3c)
 
-        # up4e = self.upBlock1(down5c,down3b)
-        # up3e = self.upBlock2(up4e, down2b)
-        # up2e = self.upBlock3(up3e, down1b)
-        # up1e = self.upBlock4(up2e, down0b)
-        # avg = self.avgpool(up1e)
         avg = self.avgpool(down5c)
 
         out = self.logits(avg)
         out = out.view(-1, self.pred_dim)
-        # print('out', out.shape)
         
         return out
+
+class SalsaSeg(nn.Module):
+    def __init__(self, pretrain_path, input_size=10, nclasses=3, freeze_base=True):
+        super(SalsaSeg, self).__init__()
+        checkpoint = torch.load(pretrain_path)
+        base_model = SimSiam(SalsaNextEncoder(), 1024, 256)
+        base_model.load_state_dict(checkpoint['state_dict'],strict=False)
+        embedding_layers = nn.Sequential(
+                                        base_model.backbone1.downCntx,
+                                        base_model.backbone1.downCntx2,
+                                        base_model.backbone1.downCntx3,
+                                        base_model.backbone1.resBlock1,
+                                        base_model.backbone1.resBlock2,
+                                        base_model.backbone1.resBlock3,
+                                        base_model.backbone1.resBlock4,
+                                        base_model.backbone1.resBlock5
+        )
+        if freeze_base:
+            for param in embedding_layers.parameters():
+                param.requires_grad = False
+
+        self.nclasses = nclasses
+        self.input_size = input_size
+        
+        self.downCntx = embedding_layers[0]
+        self.downCntx2 = embedding_layers[1]
+        self.downCntx3 = embedding_layers[2]
+
+        self.resBlock1 = embedding_layers[3]
+        self.resBlock2 = embedding_layers[4]
+        self.resBlock3 = embedding_layers[5]
+        self.resBlock4 = embedding_layers[6]
+        self.resBlock5 = embedding_layers[7]
+
+        self.upBlock1 = UpBlock(2 * 4 * 32, 4 * 32, 0.2)
+        self.upBlock2 = UpBlock(4 * 32, 4 * 32, 0.2)
+        self.upBlock3 = UpBlock(4 * 32, 2 * 32, 0.2)
+        self.upBlock4 = UpBlock(2 * 32, 32, 0.2, drop_out=False)
+
+        self.logits = nn.Conv2d(32, self.nclasses, kernel_size=(1, 1))
+    
+    def forward(self, x):
+        downCntx = self.downCntx(x)
+        downCntx = self.downCntx2(downCntx)
+        downCntx = self.downCntx3(downCntx)
+
+        down0c, down0b = self.resBlock1(downCntx)
+        down1c, down1b = self.resBlock2(down0c)
+        down2c, down2b = self.resBlock3(down1c)
+        down3c, down3b = self.resBlock4(down2c)
+        down5c = self.resBlock5(down3c)
+
+        up4e = self.upBlock1(down5c,down3b)
+        up3e = self.upBlock2(up4e, down2b)
+        up2e = self.upBlock3(up3e, down1b)
+        up1e = self.upBlock4(up2e, down0b)
+        logits = self.logits(up1e)
+
+        logits = logits
+        logits = F.softmax(logits, dim=1)
+        return logits

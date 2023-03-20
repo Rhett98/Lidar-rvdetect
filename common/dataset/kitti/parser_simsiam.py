@@ -1,6 +1,6 @@
 import os
 import sys
-# sys.path.insert(0, '/home/robot/Repository/Lidar-inpainting/')
+sys.path.insert(0, '/home/robot/Repository/Lidar-inpainting/')
 
 import numpy as np
 import torch
@@ -501,10 +501,10 @@ class KittiRV(Dataset):
 if __name__ == '__main__':
     import yaml
     ARCH = yaml.safe_load(open('config/simsiam.yml', 'r'))
-    # DATA = yaml.safe_load(open('config/labels/semantic-kitti-mos.yaml', 'r'))
-    # data = '/home/robot/Repository/data_odometry_velodyne/dataset'
-    DATA = yaml.safe_load(open('config/labels/kitti-toy.yaml', 'r'))
+    DATA = yaml.safe_load(open('config/labels/semantic-kitti-mos.yaml', 'r'))
     data = '/home/robot/Repository/data_odometry_velodyne/dataset'
+    # DATA = yaml.safe_load(open('config/labels/kitti-toy.yaml', 'r'))
+    # data = '/home/robot/Repository/data_odometry_velodyne/dataset'
     train_dataset = KittiRV('train', ARCH, DATA, data, True, False, True)
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                                 batch_size=4,
