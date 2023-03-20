@@ -93,11 +93,14 @@ class Trainer():
         parserModule = imp.load_source("parserModule",
                                        f"{booger.TRAIN_PATH}/common/dataset/{self.DATA['name']}/parser_simsiam.py")
         self.parser = parserModule.KittiRV('train', ARCH, DATA, datadir, True ,False, True)
+
         self.train_loader = torch.utils.data.DataLoader(self.parser, batch_size=ARCH["train"]["batch_size"],
-                                                         shuffle=True,num_workers=ARCH["train"]["workers"], drop_last=True)
+                                                         shuffle=True,num_workers=ARCH["train"]["workers"], drop_last=True, 
+                                                         pin_memory=True, prefetch_factor=True)
         self.parser_valid = parserModule.KittiRV('valid', ARCH, DATA, datadir, True)                                                
         self.valid_loader = torch.utils.data.DataLoader(self.parser_valid, batch_size = ARCH["train"]["batch_size"],
-                                                         shuffle=True,num_workers=ARCH["train"]["workers"], drop_last=True)
+                                                         shuffle=True,num_workers=ARCH["train"]["workers"], drop_last=True, 
+                                                         pin_memory=True, prefetch_factor=True)
 
         # weights for loss (and bias)
 
