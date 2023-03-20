@@ -5,6 +5,7 @@ import os
 import time
 import imp
 import cv2
+from tqdm import tqdm 
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -227,7 +228,7 @@ class Trainer():
             if 'valid_classes' in tag:
                 # solve the bug of saving tensor type of value
                 continue
-            logger.scalar_summary(tag, value, epoch)
+            logger.add_scalar(tag, value, epoch)
 
         # save summaries of weights and biases
         if w_summary and model:
@@ -358,7 +359,7 @@ class Trainer():
         model.train()
 
         end = time.time()
-        for i, (in_vol, proj_labels) in enumerate(train_loader):
+        for i, (in_vol, proj_labels) in tqdm(enumerate(train_loader)):
             # measure data loading time
             self.data_time_t.update(time.time() - end)
             in_vol,_ = torch.split(in_vol, 10, dim=1)
@@ -477,7 +478,7 @@ class Trainer():
 
         with torch.no_grad():
             end = time.time()
-            for i, (in_vol, proj_labels) in enumerate(val_loader):
+            for i, (in_vol, proj_labels) in tqdm(enumerate(val_loader)):
                 in_vol,_ = torch.split(in_vol, 10, dim=1)
                 in_vol = in_vol.cuda().half()
                 # proj_mask = proj_mask.cuda()
