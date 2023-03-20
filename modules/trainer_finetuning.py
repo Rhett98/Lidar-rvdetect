@@ -234,13 +234,13 @@ class Trainer():
             logger.add_scalar(tag, value, epoch)
 
         # save summaries of weights and biases
-        if w_summary and model:
-            for tag, value in model.named_parameters():
-                tag = tag.replace('.', '/')
-                logger.add_scalar(tag, value.data.cpu().numpy(), epoch)
-                if value.grad is not None:
-                    logger.add_scalar(
-                        tag + '/grad', value.grad.data.cpu().numpy(), epoch)
+        # if w_summary and model:
+        #     for tag, value in model.named_parameters():
+        #         tag = tag.replace('.', '/')
+        #         logger.add_scalar(tag, value.data.cpu().numpy(), epoch)
+        #         if value.grad is not None:
+        #             logger.add_scalar(
+        #                 tag + '/grad', value.grad.data.cpu().numpy(), epoch)
 
         if img_summary and len(imgs) > 0:
             directory = os.path.join(logdir, "predictions")
