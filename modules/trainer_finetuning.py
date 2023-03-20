@@ -60,7 +60,7 @@ def save_to_log(logdir, logfile, message):
 def save_checkpoint(to_save, logdir, suffix=""):
     # Save the weights
     torch.save(to_save, logdir +
-               "/DualSalsaNext" + suffix)
+               "/SalsaNextDecoder" + suffix)
 
 
 class Trainer():
@@ -93,7 +93,7 @@ class Trainer():
         # get the data
         parserModule = imp.load_source("parserModule",
                                        f"{booger.TRAIN_PATH}/common/dataset/{self.DATA['name']}/parser_simsiam.py")
-        self.parser = parserModule.KittiRV('train', ARCH, DATA, datadir, True ,False, True)
+        self.parser = parserModule.KittiRV('train', ARCH, DATA, datadir, True , False, True)
 
         self.train_loader = torch.utils.data.DataLoader(self.parser, batch_size=ARCH["train"]["batch_size"],
                                                          shuffle=True,num_workers=ARCH["train"]["workers"], drop_last=True, 
@@ -191,7 +191,7 @@ class Trainer():
         estimate = int((self.data_time_t.avg + self.batch_time_t.avg) * \
                        (self.parser.get_train_size() * self.ARCH['train']['max_epochs'] - (
                                iter + 1 + epoch * self.parser.get_train_size()))) + \
-                   int(self.batch_time_e.avg * self.parser.get_valid_size() * (
+                   int(self.batch_time_e.avg * self.parser_valid.get_valid_size() * (
                            self.ARCH['train']['max_epochs'] - (epoch)))
         return str(datetime.timedelta(seconds=estimate))
 
@@ -304,8 +304,8 @@ class Trainer():
                                                          model=self.model,
                                                          criterion=self.criterion,
                                                          evaluator=self.evaluator,
-                                                         class_func=self.parser.get_xentropy_class_string,
-                                                         color_fn=self.parser.to_color,
+                                                         class_func=self.parser_valid.get_xentropy_class_string,
+                                                         color_fn=self.parser_valid.to_color,
                                                          save_scans=self.ARCH["train"]["save_scans"])
 
                 # update info
@@ -390,7 +390,7 @@ class Trainer():
             losses.update(loss.item(), in_vol.size(0))
             acc.update(accuracy.item(), in_vol.size(0))
             iou.update(jaccard.item(), in_vol.size(0))
-
+            
             # measure elapsed time
             self.batch_time_t.update(time.time() - end)
             end = time.time()
