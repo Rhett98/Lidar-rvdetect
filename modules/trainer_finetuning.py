@@ -36,6 +36,9 @@ def one_hot_pred_from_label(y_pred, labels):
 
     return y_true
 
+def my_calculate_estimate(max_epoch, epoch, iter, len_data, data_time_t, batch_time_t):
+        estimate = int((data_time_t + batch_time_t) * (len_data * max_epoch - (iter + 1 + epoch * len_data)))
+        return str(datetime.timedelta(seconds=estimate))
 
 class SoftmaxHeteroscedasticLoss(torch.nn.Module):
     def __init__(self):
@@ -440,7 +443,11 @@ class Trainer():
                         'IoU {iou.val:.3f} ({iou.avg:.3f}) | [{estim}]'.format(
                     epoch, i, len(train_loader), batch_time=self.batch_time_t,
                     data_time=self.data_time_t, loss=losses, acc=acc, iou=iou, lr=lr,
-                    umean=update_mean, ustd=update_std, estim=self.calculate_estimate(epoch, i)))
+                    umean=update_mean, ustd=update_std, 
+                    # estim=self.calculate_estimate(epoch, i))
+                    estim=my_calculate_estimate(self.ARCH["train"]["max_epochs"],
+                    epoch,i,len(train_loader),self.data_time_t.avg, self.batch_time_t.avg)
+                    ))
 
                 save_to_log(self.log, 'log.txt', 'Lr: {lr:.3e} | '
                                                     'Update: {umean:.3e} mean,{ustd:.3e} std | '
@@ -452,7 +459,11 @@ class Trainer():
                                                     'IoU {iou.val:.3f} ({iou.avg:.3f}) | [{estim}]'.format(
                     epoch, i, len(train_loader), batch_time=self.batch_time_t,
                     data_time=self.data_time_t, loss=losses, acc=acc, iou=iou, lr=lr,
-                    umean=update_mean, ustd=update_std, estim=self.calculate_estimate(epoch, i)))
+                    umean=update_mean, ustd=update_std, 
+                    # estim=self.calculate_estimate(epoch, i))
+                    estim=my_calculate_estimate(self.ARCH["train"]["max_epochs"],
+                    epoch,i,len(train_loader),self.data_time_t.avg, self.batch_time_t.avg)
+                    ))
 
             # step scheduler
             scheduler.step()
