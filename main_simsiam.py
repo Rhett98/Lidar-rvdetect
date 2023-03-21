@@ -24,6 +24,7 @@ import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
 from torch.cuda.amp import autocast, grad_scaler
+from tensorboardX import SummaryWriter as Logger
 
 import __init__ as booger
 from modules.SalsaNext_simsiam import *
@@ -79,6 +80,7 @@ def main_worker(args):
     workers = ARCH["train"]["workers"]
     epochs = ARCH["train"]["max_epochs"]
     start_epoch = 0
+    # resume = 'checkpoint/checkpoint_0057.pth.tar' # load chechpoint path
     resume = None # load chechpoint path
     gpu = 0
     batch_size = ARCH["train"]["batch_size"]
@@ -88,6 +90,8 @@ def main_worker(args):
     pred_dim = ARCH["train"]["pred_dim"]
     dim = ARCH["train"]["dim"]
     fix_pred_lr = ARCH["train"]["fix_pred_lr"]
+    log = 'log'
+    tb_logger = Logger(log + "/tb")
 
     if gpu is not None:
         print("Use GPU: {} for training".format(gpu))
@@ -130,8 +134,8 @@ def main_worker(args):
                 loc = 'cuda:{}'.format(gpu)
                 checkpoint = torch.load(resume, map_location=loc)
             start_epoch = checkpoint['epoch']
-            model.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
+            model.load_state_dict(checkpoint['state_dict'],strict=False)
+            # optimizer.load_state_dict(checkpoint['optimizer'],strict=False)
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(resume, checkpoint['epoch']))
         else:
@@ -142,7 +146,7 @@ def main_worker(args):
     parserModule = imp.load_source("parserModule",
                                        f"{booger.TRAIN_PATH}/common/dataset/{DATA['name']}/parser_simsiam.py")
     train_dataset = parserModule.KittiRV('train', ARCH, DATA, args.data,
-                                        gt=False,transform=False,drop_few_static_frames=True)
+                                        gt=False,transform=False,drop_few_static_frames=False)
 
     train_sampler = None
 
@@ -154,7 +158,7 @@ def main_worker(args):
         adjust_learning_rate(optimizer, init_lr, epoch, epochs)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, epochs)
+        train(train_loader, model, criterion, optimizer, epoch, epochs, tb_logger)
 
         if epoch % 3 == 0:
             save_checkpoint({
@@ -165,7 +169,7 @@ def main_worker(args):
             }, is_best=False, filename='checkpoint_{:04d}.pth.tar'.format(epoch))
 
 
-def train(train_loader, model, criterion, optimizer, epoch, max_epoch):
+def train(train_loader, model, criterion, optimizer, epoch, max_epoch, logger):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4f')
@@ -205,6 +209,8 @@ def train(train_loader, model, criterion, optimizer, epoch, max_epoch):
         if i % 10 == 0:
             progress.display(i)
             print('train time left: ',calculate_estimate(max_epoch,epoch,i,len(train_loader),data_time.avg, batch_time.avg))
+    # tensorboard logger
+    logger.add_scalar('loss', loss, epoch)
 
 def calculate_estimate(max_epoch, epoch, iter, len_data, data_time_t, batch_time_t):
         estimate = int((data_time_t + batch_time_t) * (len_data * max_epoch - (iter + 1 + epoch * len_data)))
