@@ -262,14 +262,14 @@ class SalsaSeg(nn.Module):
         base_model = SimSiam(SalsaNextEncoder(), 1024, 256)
         base_model.load_state_dict(checkpoint['state_dict'],strict=False)
         embedding_layers = nn.Sequential(
-                                        base_model.backbone1.downCntx,
-                                        base_model.backbone1.downCntx2,
-                                        base_model.backbone1.downCntx3,
-                                        base_model.backbone1.resBlock1,
-                                        base_model.backbone1.resBlock2,
-                                        base_model.backbone1.resBlock3,
-                                        base_model.backbone1.resBlock4,
-                                        base_model.backbone1.resBlock5
+                                        base_model.backbone.downCntx,
+                                        base_model.backbone.downCntx2,
+                                        base_model.backbone.downCntx3,
+                                        base_model.backbone.resBlock1,
+                                        base_model.backbone.resBlock2,
+                                        base_model.backbone.resBlock3,
+                                        base_model.backbone.resBlock4,
+                                        base_model.backbone.resBlock5
         )
         if freeze_base:
             for param in embedding_layers.parameters():
