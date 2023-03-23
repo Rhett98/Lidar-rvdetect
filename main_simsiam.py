@@ -44,6 +44,13 @@ parser.add_argument('--data_cfg', '-dc',
                     default='config/labels/semantic-kitti-mos.yaml',
                     help='Classification yaml cfg file. See /config/'+
                     'labels for sample.',)
+parser.add_argument(
+                    '--pretrained', '-p',
+                    type=str,
+                    required=False,
+                    default=None,
+                    help='Directory to get the pretrained model. If not passed, do from scratch!'
+                )
 
 def main():
     args, unparsed = parser.parse_known_args()
@@ -80,8 +87,7 @@ def main_worker(args):
     workers = ARCH["train"]["workers"]
     epochs = ARCH["train"]["max_epochs"]
     start_epoch = 0
-    resume = 'checkpoint/pretrained.pth.tar' # load chechpoint path
-    # resume = None # load chechpoint path
+    resume = args.pretrained # load chechpoint path
     gpu = 0
     batch_size = ARCH["train"]["batch_size"]
     lr = ARCH["train"]["lr"]
