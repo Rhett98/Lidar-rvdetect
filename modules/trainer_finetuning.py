@@ -129,7 +129,7 @@ class Trainer():
 
         pytorch_total_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         print("Total of Trainable Parameters: {}".format(pytorch_total_params,2))
-        self.tb_logger = Logger(self.log + "/tb")
+        self.tb_logger = Logger(self.log + "/finetuning")
 
         # GPU?
         self.gpu = False

@@ -97,7 +97,7 @@ def main_worker(args):
     dim = ARCH["train"]["dim"]
     fix_pred_lr = ARCH["train"]["fix_pred_lr"]
     log = 'log'
-    tb_logger = Logger(log + "/tb")
+    tb_logger = Logger(log + "/simsiam")
 
     if gpu is not None:
         print("Use GPU: {} for training".format(gpu))

@@ -32,4 +32,5 @@ python main_simsiam.py ../dataset -ac config/simsiam.yml -dc config/labels/seman
 python train_finetuning.py -d ../dataset -ac config/salsanext_mos.yml -dc config/labels/semantic-kitti-mos.yaml -p checkpoint/pretrained.pth.tar
 
 ## tensorboard
-tensorboard --logdir=log/tb --port 8123
+tensorboard --logdir=log/simsiam --port 8122
+tensorboard --logdir=log/finetuning --port 8123
