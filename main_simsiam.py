@@ -80,8 +80,8 @@ def main_worker(args):
     workers = ARCH["train"]["workers"]
     epochs = ARCH["train"]["max_epochs"]
     start_epoch = 0
-    # resume = 'checkpoint/checkpoint_0057.pth.tar' # load chechpoint path
-    resume = None # load chechpoint path
+    resume = 'checkpoint/pretrained.pth.tar' # load chechpoint path
+    # resume = None # load chechpoint path
     gpu = 0
     batch_size = ARCH["train"]["batch_size"]
     lr = ARCH["train"]["lr"]
