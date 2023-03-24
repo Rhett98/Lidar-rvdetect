@@ -200,13 +200,13 @@ def train(train_loader, model, criterion, optimizer, epoch, max_epoch, logger):
         with autocast():
             # compute output and loss
             p1, p2, z1, z2 = model(x1=image_0, x2=image_1)
-            a = criterion(p1, z2).mean()
-            b = criterion(p2, z1).mean()
+            # a = criterion(p1, z2).mean()
+            # b = criterion(p2, z1).mean()
             # print('l1:', a, 'l2:',b)
-            loss = -(2*a/3 + b/3)
+            # loss = -(2*a/3 + b/3)
             # print('loss', loss)
             # print('**************')
-            # loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
+            loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
             losses.update(loss.item(), image_0.size(0))
 
         # compute gradient and do SGD step
