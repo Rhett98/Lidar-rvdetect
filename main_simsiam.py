@@ -27,6 +27,7 @@ from torch.cuda.amp import autocast, grad_scaler
 from tensorboardX import SummaryWriter as Logger
 
 import __init__ as booger
+from modules.KNN import *
 from modules.SalsaNext_simsiam import *
 from modules.simsiam import *
 
@@ -165,8 +166,19 @@ def main_worker(args):
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, epochs, tb_logger)
+        
 
-        if epoch % 3 == 0:
+        if epoch % 4 == 0:
+            # # KNN evaluation
+            # ssl_evaluator = KNN(model=model, k=1, device='cuda')
+            # train_acc, val_acc = ssl_evaluator.fit(train_loader)
+            # print(f'\n Epoch {i}: loss:{mean_loss}')
+            # print(f"k-nn accuracy k= {ssl_evaluator.k} for train split: {train_acc}")
+            # print(f"k-nn accuracy k= {ssl_evaluator.k} for val split: {val_acc} \n")
+            # print('-----------------')
+            # train_knns.append(train_acc)
+            # val_knns.append(val_acc)
+            # checkpoint save
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': 'salsanext',
@@ -199,14 +211,10 @@ def train(train_loader, model, criterion, optimizer, epoch, max_epoch, logger):
 
         with autocast():
             # compute output and loss
-            p1, p2, z1, z2 = model(x1=image_0, x2=image_1)
-            # a = criterion(p1, z2).mean()
-            # b = criterion(p2, z1).mean()
-            # print('l1:', a, 'l2:',b)
-            # loss = -(2*a/3 + b/3)
-            # print('loss', loss)
-            # print('**************')
-            loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
+            # p1, p2, z1, z2 = model(x1=image_0, x2=image_1)
+            # loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
+            p1, z2 = model(x1=image_0, x2=image_1)
+            loss = - criterion(p1, z2).mean()
             losses.update(loss.item(), image_0.size(0))
 
         # compute gradient and do SGD step
@@ -218,7 +226,7 @@ def train(train_loader, model, criterion, optimizer, epoch, max_epoch, logger):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i % 10 == 0:
+        if i % 20 == 0:
             progress.display(i)
             print('train time left: ',calculate_estimate(max_epoch,epoch,i,len(train_loader),data_time.avg, batch_time.avg))
     # tensorboard logger
