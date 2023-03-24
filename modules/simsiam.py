@@ -112,12 +112,12 @@ class SimSiam(nn.Module):
         self.backbone = backbone
         self.projector = projection_MLP(pred_dim)
 
-        self.align = nn.Sequential(nn.Conv2d(1, 10, kernel_size=3, padding=1),
+        self.align = nn.Sequential(nn.Conv2d(10, 1, kernel_size=3, padding=1),
                                    nn.LeakyReLU(),
-                                   nn.BatchNorm2d(10), 
-                                   nn.Conv2d(10, 10, kernel_size=3, padding=1),
+                                   nn.BatchNorm2d(1), 
+                                   nn.Conv2d(1, 1, kernel_size=3, padding=1),
                                    nn.LeakyReLU(),
-                                   nn.BatchNorm2d(10)      
+                                   nn.BatchNorm2d(1)      
                                 )
 
         self.encoder = nn.Sequential( # f encoder
@@ -137,7 +137,7 @@ class SimSiam(nn.Module):
         """
 
         # compute features for one view
-        x2 = self.align(x2)
+        x1 = self.align(x1)
 
         z1 = self.encoder(x1) # NxC
         z2 = self.encoder(x2) # NxC
