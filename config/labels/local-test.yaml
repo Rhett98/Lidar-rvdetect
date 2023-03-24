@@ -166,4 +166,4 @@ split: # sequence numbers
   valid:
     - 8
   test:
-    - 10
+    - 9
