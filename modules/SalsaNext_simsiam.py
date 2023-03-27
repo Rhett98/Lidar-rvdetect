@@ -259,17 +259,22 @@ class SalsaSeg(nn.Module):
     def __init__(self, pretrain_path, input_size=10, nclasses=3, freeze_base=True):
         super(SalsaSeg, self).__init__()
         checkpoint = torch.load(pretrain_path)
-        base_model = SimSiam(SalsaNextEncoder(), 1024, 256)
-        base_model.load_state_dict(checkpoint['state_dict'],strict=False)
+        base_model = SalsaNextEncoder()
+        state_dict = base_model.state_dict()
+        pretrained_dict = checkpoint["state_dict"]
+        for key in state_dict:
+            if 'encoder.0.'+key in pretrained_dict:
+                state_dict[key] = pretrained_dict['encoder.0.'+key]
+        base_model.load_state_dict(state_dict, strict=True)
         embedding_layers = nn.Sequential(
-                                        base_model.backbone.downCntx,
-                                        base_model.backbone.downCntx2,
-                                        base_model.backbone.downCntx3,
-                                        base_model.backbone.resBlock1,
-                                        base_model.backbone.resBlock2,
-                                        base_model.backbone.resBlock3,
-                                        base_model.backbone.resBlock4,
-                                        base_model.backbone.resBlock5
+                                        base_model.downCntx,
+                                        base_model.downCntx2,
+                                        base_model.downCntx3,
+                                        base_model.resBlock1,
+                                        base_model.resBlock2,
+                                        base_model.resBlock3,
+                                        base_model.resBlock4,
+                                        base_model.resBlock5
         )
         if freeze_base:
             for param in embedding_layers.parameters():
