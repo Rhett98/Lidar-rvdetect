@@ -1,6 +1,8 @@
 import os
 import sys
-# sys.path.insert(0, '/home/robot/Repository/Lidar-inpainting/')
+path = os.getcwd()
+sys.path.append(path)
+
 import numpy as np
 import torch
 from torch.utils.data import Dataset
