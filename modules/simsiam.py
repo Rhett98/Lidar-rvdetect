@@ -74,7 +74,7 @@ class projection_MLP(nn.Module):
         return x 
 
 class prediction_MLP(nn.Module):
-    def __init__(self, in_dim=2048, hidden_dim=512, out_dim=2048): # bottleneck structure
+    def __init__(self, in_dim=2048, hidden_dim=512, out_dim=2048): 
         super().__init__()
         ''' page 3 baseline setting
         Prediction MLP. The prediction MLP (h) has BN applied 
@@ -110,21 +110,21 @@ class SimSiam(nn.Module):
         super().__init__()
         
         self.backbone = backbone
-        self.projector = projection_MLP(pred_dim)
+        self.projector = projection_MLP(dim)
 
-        self.align = nn.Sequential(nn.Conv2d(10, 1, kernel_size=3, padding=1),
+        self.align = nn.Sequential(nn.Conv2d(1, 10, kernel_size=3, padding=1),
                                    nn.LeakyReLU(),
-                                   nn.BatchNorm2d(1), 
-                                   nn.Conv2d(1, 1, kernel_size=3, padding=1),
+                                   nn.BatchNorm2d(10), 
+                                   nn.Conv2d(10, 10, kernel_size=3, padding=1),
                                    nn.LeakyReLU(),
-                                   nn.BatchNorm2d(1)      
+                                   nn.BatchNorm2d(10)      
                                 )
-
-        self.encoder = nn.Sequential( # f encoder
+        # f encoder
+        self.encoder = nn.Sequential( 
             self.backbone,
             self.projector
         )
-        self.predictor = prediction_MLP()
+        self.predictor = prediction_MLP(dim, dim, pred_dim)
     
     def forward(self, x1, x2):
         """
@@ -137,7 +137,7 @@ class SimSiam(nn.Module):
         """
 
         # compute features for one view
-        x1 = self.align(x1)
+        x2 = self.align(x2)
 
         z1 = self.encoder(x1) # NxC
         z2 = self.encoder(x2) # NxC

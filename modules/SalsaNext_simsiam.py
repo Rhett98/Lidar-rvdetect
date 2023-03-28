@@ -216,7 +216,7 @@ class SalsaNext(nn.Module):
         return logits
 
 class SalsaNextEncoder(nn.Module):
-    def __init__(self, input_size=1, pred_dim=256):
+    def __init__(self, input_size=10, pred_dim=512):
         super(SalsaNextEncoder, self).__init__()
         self.pred_dim = pred_dim
 
