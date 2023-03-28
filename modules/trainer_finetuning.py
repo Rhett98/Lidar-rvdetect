@@ -122,7 +122,7 @@ class Trainer():
 
         with torch.no_grad():
             if self.path is not None:
-                self.model = SalsaSeg(self.path)
+                self.model = SalsaSeg(self.path, 10, 256)
                 self.model.half()
             else:
                 raise ValueError("THE PRETRAIN MODEL doesn't exist! Exiting...")

@@ -256,10 +256,10 @@ class SalsaNextEncoder(nn.Module):
         return out
 
 class SalsaSeg(nn.Module):
-    def __init__(self, pretrain_path, input_size=10, nclasses=3, freeze_base=True):
+    def __init__(self, pretrain_path, input_size=10, pred_dim=256, nclasses=3, freeze_base=True):
         super(SalsaSeg, self).__init__()
         checkpoint = torch.load(pretrain_path)
-        base_model = SalsaNextEncoder()
+        base_model = SalsaNextEncoder(input_size, pred_dim)
         state_dict = base_model.state_dict()
         pretrained_dict = checkpoint["state_dict"]
         for key in state_dict:
