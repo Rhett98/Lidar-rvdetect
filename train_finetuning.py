@@ -83,10 +83,11 @@ if __name__ == '__main__':
         help='Directory to get the pretrained model. If not passed, do from scratch!'
     )
     parser.add_argument(
-        '--uncertainty', '-u',
-        type=str2bool, nargs='?',
-        const=True, default=False,
-        help='Set this if you want to use the Uncertainty Version'
+        '--checkpoint', '-c',
+        type=str, 
+        required=False,
+        default=None,
+        help='Directory to get the finetuning ckpt model. If not passed, do from scratch!'
     )
 
     FLAGS, unparsed = parser.parse_known_args()
@@ -118,7 +119,7 @@ if __name__ == '__main__':
     print("dataset", FLAGS.dataset)
     print("arch_cfg", FLAGS.arch_cfg)
     print("data_cfg", FLAGS.data_cfg)
-    # print("uncertainty", FLAGS.uncertainty)
+    print("finetuning ckpt", FLAGS.checkpoint)
     # print("Total of Trainable Parameters: {}".format(millify(pytorch_total_params,2)))
     print("log", FLAGS.log)
     print("pretrained", FLAGS.pretrained)
@@ -165,5 +166,5 @@ if __name__ == '__main__':
     #     quit()
 
     # create trainer and start the training
-    trainer = Trainer(ARCH, DATA, FLAGS.dataset, FLAGS.log, FLAGS.pretrained,FLAGS.uncertainty)
+    trainer = Trainer(ARCH, DATA, FLAGS.dataset, FLAGS.log, FLAGS.pretrained,FLAGS.checkpoint)
     trainer.train()

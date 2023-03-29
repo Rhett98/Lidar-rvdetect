@@ -29,7 +29,7 @@ python main_simsiam.py ../toydata -ac config/simsiam.yml -dc config/labels/kitti
 python main_simsiam.py ../dataset -ac config/simsiam.yml -dc config/labels/semantic-kitti-simsiam.yaml -p checkpoint/pretrained.pth.tar
 
 ## fine-tuning
-python train_finetuning.py -d ../dataset -ac config/salsanext_mos.yml -dc config/labels/semantic-kitti-mos.yaml -p checkpoint/pretrained.pth.tar
+python train_finetuning.py -d ../dataset -ac config/salsanext_mos.yml -dc config/labels/semantic-kitti-mos.yaml -p checkpoint/align_x2.pth.tar -c checkpoint/SalsaNextDecoder
 
 ## tensorboard
 tensorboard --logdir=log/simsiam --port 8122

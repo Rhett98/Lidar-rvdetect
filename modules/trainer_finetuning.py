@@ -67,14 +67,14 @@ def save_checkpoint(to_save, logdir, suffix=""):
 
 
 class Trainer():
-    def __init__(self, ARCH, DATA, datadir, logdir, path=None, uncertainty=False):
+    def __init__(self, ARCH, DATA, datadir, logdir, path=None, ckpt=None):
         # parameters
         self.ARCH = ARCH
         self.DATA = DATA
         self.datadir = datadir
         self.log = logdir
         self.path = path
-        self.uncertainty = uncertainty
+        self.ckpt = ckpt
 
         self.batch_time_t = AverageMeter()
         self.data_time_t = AverageMeter()
@@ -120,12 +120,21 @@ class Trainer():
                 self.loss_w[x_cl] = 0
         print("Loss weights from content: ", self.loss_w.data)
 
-        with torch.no_grad():
-            if self.path is not None:
-                self.model = SalsaSeg(self.path, 10, 256)
-                self.model.half()
-            else:
-                raise ValueError("THE PRETRAIN MODEL doesn't exist! Exiting...")
+        if self.path is not None:
+            self.model = SalsaSeg(self.path, 10, 256)
+            self.model.half()
+        else:
+            raise ValueError("THE PRETRAIN MODEL doesn't exist! Exiting...")
+        if self.ckpt!=None:
+            state_dict = self.model.state_dict()
+            checkpoint = torch.load(self.ckpt)
+            ckpt_dict = checkpoint["state_dict"]
+            for key in state_dict:
+                if key in ckpt_dict:
+                    state_dict[key] = ckpt_dict[key]
+            self.model.load_state_dict(state_dict, strict=True)
+            self.epoch = checkpoint['epoch']
+            print('**'*10+'Load finetuning checkpoint'+'**'*10)
 
         pytorch_total_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         print("Total of Trainable Parameters: {}".format(pytorch_total_params,2))
@@ -232,15 +241,6 @@ class Trainer():
                 # solve the bug of saving tensor type of value
                 continue
             logger.add_scalar(tag, value, epoch)
-
-        # save summaries of weights and biases
-        # if w_summary and model:
-        #     for tag, value in model.named_parameters():
-        #         tag = tag.replace('.', '/')
-        #         logger.add_scalar(tag, value.data.cpu().numpy(), epoch)
-        #         if value.grad is not None:
-        #             logger.add_scalar(
-        #                 tag + '/grad', value.grad.data.cpu().numpy(), epoch)
 
         if img_summary and len(imgs) > 0:
             directory = os.path.join(logdir, "predictions")
