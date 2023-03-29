@@ -125,16 +125,6 @@ class Trainer():
             self.model.half()
         else:
             raise ValueError("THE PRETRAIN MODEL doesn't exist! Exiting...")
-        if self.ckpt!=None:
-            state_dict = self.model.state_dict()
-            checkpoint = torch.load(self.ckpt)
-            ckpt_dict = checkpoint["state_dict"]
-            for key in state_dict:
-                if key in ckpt_dict:
-                    state_dict[key] = ckpt_dict[key]
-            self.model.load_state_dict(state_dict, strict=True)
-            self.epoch = checkpoint['epoch']
-            print('**'*10+'Load finetuning checkpoint'+'**'*10)
 
         pytorch_total_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         print("Total of Trainable Parameters: {}".format(pytorch_total_params,2))
@@ -153,23 +143,11 @@ class Trainer():
             self.gpu = True
             self.n_gpus = 1
             self.model.cuda()
-        if torch.cuda.is_available() and torch.cuda.device_count() > 1:
-            print("Let's use", torch.cuda.device_count(), "GPUs!")
-            self.model = nn.DataParallel(self.model)  # spread in gpus
-            self.model = convert_model(self.model).cuda()  # sync batchnorm
-            self.model_single = self.model.module  # single model to get weight names
-            self.multi_gpu = True
-            self.n_gpus = torch.cuda.device_count()
-
 
         self.criterion = nn.NLLLoss(weight=self.loss_w).to(self.device)
         self.ls = Lovasz_softmax(ignore=0).to(self.device)
         self.SoftmaxHeteroscedasticLoss = SoftmaxHeteroscedasticLoss().to(self.device)
         # loss as dataparallel too (more images in batch)
-        if self.n_gpus > 1:
-            self.criterion = nn.DataParallel(self.criterion).cuda()  # spread in gpus
-            self.ls = nn.DataParallel(self.ls).cuda()
-            self.SoftmaxHeteroscedasticLoss = nn.DataParallel(self.SoftmaxHeteroscedasticLoss).cuda()
         self.optimizer = optim.SGD([{'params': self.model.parameters()}],
                                    lr=self.ARCH["train"]["lr"],
                                    momentum=self.ARCH["train"]["momentum"],
@@ -186,17 +164,22 @@ class Trainer():
                                   momentum=self.ARCH["train"]["momentum"],
                                   decay=final_decay)
 
-        # if self.path is not None:
-        #     torch.nn.Module.dump_patches = True
-        #     w_dict = torch.load(path + "/DualSalsaNext",
-        #                         map_location=lambda storage, loc: storage)
-        #     self.model.load_state_dict(w_dict['state_dict'], strict=True)
-        #     self.optimizer.load_state_dict(w_dict['optimizer'])
-        #     self.epoch = w_dict['epoch'] + 1
-        #     self.scheduler.load_state_dict(w_dict['scheduler'])
-        #     print("dict epoch:", w_dict['epoch'])
-        #     self.info = w_dict['info']
-        #     print("info", w_dict['info'])
+        if self.ckpt!=None:
+            torch.nn.Module.dump_patches = True
+            state_dict = self.model.state_dict()
+            checkpoint = torch.load(self.ckpt)
+            ckpt_dict = checkpoint["state_dict"]
+            for key in state_dict:
+                if key in ckpt_dict:
+                    state_dict[key] = ckpt_dict[key]
+            self.model.load_state_dict(state_dict, strict=True)
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
+            self.epoch = checkpoint['epoch'] + 1
+            self.scheduler.load_state_dict(checkpoint['scheduler'])
+            print("dict epoch:", checkpoint['epoch'])
+            self.info = checkpoint['info']
+            print("info", checkpoint['info'])
+            print('**'*10+'Load finetuning checkpoint'+'**'*10)
 
 
     def calculate_estimate(self, epoch, iter):
@@ -262,6 +245,16 @@ class Trainer():
 
         # train for n epochs
         for epoch in range(self.epoch, self.ARCH["train"]["max_epochs"]):
+            # evaluate on validation set
+            print("*" * 80)
+            acc, iou, loss, rand_img,hetero_l = self.validate(val_loader=self.valid_loader,
+                                                        model=self.model,
+                                                        criterion=self.criterion,
+                                                        evaluator=self.evaluator,
+                                                        class_func=self.parser_valid.get_xentropy_class_string,
+                                                        color_fn=self.parser_valid.to_color,
+                                                        save_scans=self.ARCH["train"]["save_scans"])
+
 
             # train for 1 epoch
             acc, iou, loss, update_mean,hetero_l = self.train_epoch(train_loader=self.train_loader,
@@ -367,7 +360,9 @@ class Trainer():
             self.data_time_t.update(time.time() - end)
             in_vol,_ = torch.split(in_vol, 10, dim=1)
             in_vol = in_vol.cuda().half()
+            # print(proj_labels)
             proj_labels = proj_labels.cuda().long()
+            # print(proj_labels)
             # compute output
             with autocast():
                 output = model(in_vol)
@@ -487,118 +482,83 @@ class Trainer():
         if self.gpu:
             torch.cuda.empty_cache()
 
-        with torch.no_grad():
-            end = time.time()
-            for i, (in_vol, proj_labels) in tqdm(enumerate(val_loader)):
-                in_vol,_ = torch.split(in_vol, 10, dim=1)
-                in_vol = in_vol.cuda().half()
-                # proj_mask = proj_mask.cuda()
-                proj_labels = proj_labels.cuda().long()
+        # with torch.no_grad():
+        end = time.time()
+        for i, (in_vol, proj_labels) in tqdm(enumerate(val_loader)):
+            in_vol,_ = torch.split(in_vol, 10, dim=1)
+            in_vol = in_vol.cuda().half()
+            proj_labels = proj_labels.cuda().long()
 
-                # compute output
+            # compute output
+            with autocast():
                 output = model(in_vol)
                 log_out = torch.log(output.clamp(min=1e-8)).to(torch.float32)
-                jacc = self.ls(output, proj_labels)
-                wce = criterion(log_out, proj_labels)
+                jacc = self.ls(output, proj_labels.long())
+                wce = criterion(log_out.to(torch.float32), proj_labels.long())
                 loss = wce + jacc
 
-                # measure accuracy and record loss
-                argmax = output.argmax(dim=1)
-                evaluator.addBatch(argmax.to(torch.int64), proj_labels)
-                losses.update(loss.mean().item(), in_vol.size(0))
-                jaccs.update(jacc.mean().item(),in_vol.size(0))
+            # measure accuracy and record loss
+            argmax = output.argmax(dim=1)
+            evaluator.addBatch(argmax.to(torch.int64), proj_labels)
+            losses.update(loss.mean().item(), in_vol.size(0))
+            jaccs.update(jacc.mean().item(),in_vol.size(0))
 
 
-                wces.update(wce.mean().item(),in_vol.size(0))
+            wces.update(wce.mean().item(),in_vol.size(0))
 
-                # if save_scans:
-                #     # get the first scan in batch and project points
-                #     mask_np = proj_mask[0].cpu().numpy()
-                #     depth_np = in_vol[0][0].cpu().numpy()
-                #     pred_np = argmax[0].cpu().numpy()
-                #     gt_np = proj_labels[0].cpu().numpy()
-                #     out = Trainer.make_log_img(depth_np,
-                #                                mask_np,
-                #                                pred_np,
-                #                                gt_np,
-                #                                color_fn)
-                #     rand_imgs.append(out)
+            # if save_scans:
+            #     # get the first scan in batch and project points
+            #     mask_np = proj_mask[0].cpu().numpy()
+            #     depth_np = in_vol[0][0].cpu().numpy()
+            #     pred_np = argmax[0].cpu().numpy()
+            #     gt_np = proj_labels[0].cpu().numpy()
+            #     out = Trainer.make_log_img(depth_np,
+            #                                mask_np,
+            #                                pred_np,
+            #                                gt_np,
+            #                                color_fn)
+            #     rand_imgs.append(out)
 
-                # measure elapsed time
-                self.batch_time_e.update(time.time() - end)
-                end = time.time()
+            # measure elapsed time
+            self.batch_time_e.update(time.time() - end)
+            end = time.time()
 
             accuracy = evaluator.getacc()
             jaccard, class_jaccard = evaluator.getIoU()
             acc.update(accuracy.item(), in_vol.size(0))
             iou.update(jaccard.item(), in_vol.size(0))
-            if self.uncertainty:
-                print('Validation set:\n'       
-                      'Time avg per batch {batch_time.avg:.3f}\n'
-                      'Loss avg {loss.avg:.4f}\n'
-                      'Jaccard avg {jac.avg:.4f}\n'
-                      'WCE avg {wces.avg:.4f}\n'
-                      'Hetero avg {hetero.avg}:.4f\n'
-                      'Acc avg {acc.avg:.3f}\n'
-                      'IoU avg {iou.avg:.3f}'.format(batch_time=self.batch_time_e,
-                                                     loss=losses,
-                                                     jac=jaccs,
-                                                     wces=wces,
-                                                     hetero=hetero_l,
-                                                     acc=acc, iou=iou))
+            
 
-                save_to_log(self.log, 'log.txt', 'Validation set:\n'
-                      'Time avg per batch {batch_time.avg:.3f}\n'
-                      'Loss avg {loss.avg:.4f}\n'
-                      'Jaccard avg {jac.avg:.4f}\n'
-                      'WCE avg {wces.avg:.4f}\n'
-                      'Hetero avg {hetero.avg}:.4f\n'
-                      'Acc avg {acc.avg:.3f}\n'
-                      'IoU avg {iou.avg:.3f}'.format(batch_time=self.batch_time_e,
-                                                     loss=losses,
-                                                     jac=jaccs,
-                                                     wces=wces,
-                                                     hetero=hetero_l,
-                                                     acc=acc, iou=iou))
-                # print also classwise
-                for i, jacc in enumerate(class_jaccard):
-                    print('IoU class {i:} [{class_str:}] = {jacc:.3f}'.format(
-                        i=i, class_str=class_func(i), jacc=jacc))
-                    save_to_log(self.log, 'log.txt', 'IoU class {i:} [{class_str:}] = {jacc:.3f}'.format(
-                        i=i, class_str=class_func(i), jacc=jacc))
-                    self.info["valid_classes/"+class_func(i)] = jacc
-            else:
+        print('Validation set:\n'
+                'Time avg per batch {batch_time.avg:.3f}\n'
+                'Loss avg {loss.avg:.4f}\n'
+                'Jaccard avg {jac.avg:.4f}\n'
+                'WCE avg {wces.avg:.4f}\n'
+                'Acc avg {acc.avg:.3f}\n'
+                'IoU avg {iou.avg:.3f}'.format(batch_time=self.batch_time_e,
+                                                loss=losses,
+                                                jac=jaccs,
+                                                wces=wces,
+                                                acc=acc, iou=iou))
 
-                print('Validation set:\n'
-                      'Time avg per batch {batch_time.avg:.3f}\n'
-                      'Loss avg {loss.avg:.4f}\n'
-                      'Jaccard avg {jac.avg:.4f}\n'
-                      'WCE avg {wces.avg:.4f}\n'
-                      'Acc avg {acc.avg:.3f}\n'
-                      'IoU avg {iou.avg:.3f}'.format(batch_time=self.batch_time_e,
-                                                     loss=losses,
-                                                     jac=jaccs,
-                                                     wces=wces,
-                                                     acc=acc, iou=iou))
-
-                save_to_log(self.log, 'log.txt', 'Validation set:\n'
-                                                 'Time avg per batch {batch_time.avg:.3f}\n'
-                                                 'Loss avg {loss.avg:.4f}\n'
-                                                 'Jaccard avg {jac.avg:.4f}\n'
-                                                 'WCE avg {wces.avg:.4f}\n'
-                                                 'Acc avg {acc.avg:.3f}\n'
-                                                 'IoU avg {iou.avg:.3f}'.format(batch_time=self.batch_time_e,
-                                                                                loss=losses,
-                                                                                jac=jaccs,
-                                                                                wces=wces,
-                                                                                acc=acc, iou=iou))
-                # print also classwise
-                for i, jacc in enumerate(class_jaccard):
-                    print('IoU class {i:} [{class_str:}] = {jacc:.3f}'.format(
-                        i=i, class_str=class_func(i), jacc=jacc))
-                    save_to_log(self.log, 'log.txt', 'IoU class {i:} [{class_str:}] = {jacc:.3f}'.format(
-                        i=i, class_str=class_func(i), jacc=jacc))
-                    self.info["valid_classes/" + class_func(i)] = jacc
+        save_to_log(self.log, 'log.txt', 'Validation set:\n'
+                                            'Time avg per batch {batch_time.avg:.3f}\n'
+                                            'Loss avg {loss.avg:.4f}\n'
+                                            'Jaccard avg {jac.avg:.4f}\n'
+                                            'WCE avg {wces.avg:.4f}\n'
+                                            'Acc avg {acc.avg:.3f}\n'
+                                            'IoU avg {iou.avg:.3f}'.format(batch_time=self.batch_time_e,
+                                                                        loss=losses,
+                                                                        jac=jaccs,
+                                                                        wces=wces,
+                                                                        acc=acc, iou=iou))
+        # print also classwise
+        for i, jacc in enumerate(class_jaccard):
+            print('IoU class {i:} [{class_str:}] = {jacc:.3f}'.format(
+                i=i, class_str=class_func(i), jacc=jacc))
+            save_to_log(self.log, 'log.txt', 'IoU class {i:} [{class_str:}] = {jacc:.3f}'.format(
+                i=i, class_str=class_func(i), jacc=jacc))
+            self.info["valid_classes/" + class_func(i)] = jacc
 
 
         return acc.avg, iou.avg, losses.avg, rand_imgs, hetero_l.avg
