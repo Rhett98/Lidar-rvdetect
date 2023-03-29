@@ -472,46 +472,46 @@ class Trainer():
         if self.gpu:
             torch.cuda.empty_cache()
 
-        # with torch.no_grad():
-        end = time.time()
-        for i, (in_vol, proj_labels) in tqdm(enumerate(val_loader)):
-            in_vol,_ = torch.split(in_vol, 10, dim=1)
-            in_vol = in_vol.cuda().half()
-            proj_labels = proj_labels.cuda().long()
-
-            # compute output
-            with autocast():
-                output = model(in_vol)
-                log_out = torch.log(output.clamp(min=1e-8)).to(torch.float32)
-                jacc = self.ls(output, proj_labels.long())
-                wce = criterion(log_out.to(torch.float32), proj_labels.long())
-                loss = wce + jacc
-
-            # measure accuracy and record loss
-            argmax = output.argmax(dim=1)
-            evaluator.addBatch(argmax.to(torch.int64), proj_labels)
-            losses.update(loss.mean().item(), in_vol.size(0))
-            jaccs.update(jacc.mean().item(),in_vol.size(0))
-
-
-            wces.update(wce.mean().item(),in_vol.size(0))
-
-            # if save_scans:
-            #     # get the first scan in batch and project points
-            #     mask_np = proj_mask[0].cpu().numpy()
-            #     depth_np = in_vol[0][0].cpu().numpy()
-            #     pred_np = argmax[0].cpu().numpy()
-            #     gt_np = proj_labels[0].cpu().numpy()
-            #     out = Trainer.make_log_img(depth_np,
-            #                                mask_np,
-            #                                pred_np,
-            #                                gt_np,
-            #                                color_fn)
-            #     rand_imgs.append(out)
-
-            # measure elapsed time
-            self.batch_time_e.update(time.time() - end)
+        with torch.no_grad():
             end = time.time()
+            for i, (in_vol, proj_labels) in tqdm(enumerate(val_loader)):
+                in_vol,_ = torch.split(in_vol, 10, dim=1)
+                in_vol = in_vol.cuda().half()
+                proj_labels = proj_labels.cuda().long()
+
+                # compute output
+                with autocast():
+                    output = model(in_vol)
+                    log_out = torch.log(output.clamp(min=1e-8)).to(torch.float32)
+                    jacc = self.ls(output, proj_labels.long())
+                    wce = criterion(log_out.to(torch.float32), proj_labels.long())
+                    loss = wce + jacc
+
+                # measure accuracy and record loss
+                argmax = output.argmax(dim=1)
+                evaluator.addBatch(argmax.to(torch.int64), proj_labels)
+                losses.update(loss.mean().item(), in_vol.size(0))
+                jaccs.update(jacc.mean().item(),in_vol.size(0))
+
+
+                wces.update(wce.mean().item(),in_vol.size(0))
+
+                # if save_scans:
+                #     # get the first scan in batch and project points
+                #     mask_np = proj_mask[0].cpu().numpy()
+                #     depth_np = in_vol[0][0].cpu().numpy()
+                #     pred_np = argmax[0].cpu().numpy()
+                #     gt_np = proj_labels[0].cpu().numpy()
+                #     out = Trainer.make_log_img(depth_np,
+                #                                mask_np,
+                #                                pred_np,
+                #                                gt_np,
+                #                                color_fn)
+                #     rand_imgs.append(out)
+
+                # measure elapsed time
+                self.batch_time_e.update(time.time() - end)
+                end = time.time()
 
             accuracy = evaluator.getacc()
             jaccard, class_jaccard = evaluator.getIoU()
