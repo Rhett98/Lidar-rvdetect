@@ -110,7 +110,7 @@ class SimSiam(nn.Module):
         super().__init__()
         
         self.backbone = backbone
-        self.projector = projection_MLP(dim)
+        self.projector = projection_MLP(dim, pred_dim, dim)
 
         self.align = nn.Sequential(nn.Conv2d(1, 10, kernel_size=3, padding=1),
                                    nn.LeakyReLU(),
@@ -124,7 +124,7 @@ class SimSiam(nn.Module):
             self.backbone,
             self.projector
         )
-        self.predictor = prediction_MLP(dim, dim, pred_dim)
+        self.predictor = prediction_MLP(dim, pred_dim, dim)
     
     def forward(self, x1, x2):
         """

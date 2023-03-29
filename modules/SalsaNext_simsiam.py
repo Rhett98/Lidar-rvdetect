@@ -216,9 +216,9 @@ class SalsaNext(nn.Module):
         return logits
 
 class SalsaNextEncoder(nn.Module):
-    def __init__(self, input_size=10, pred_dim=512):
+    def __init__(self, input_size=10, dim=512):
         super(SalsaNextEncoder, self).__init__()
-        self.pred_dim = pred_dim
+        self.out_dim = dim
 
         self.input_size = input_size
         
@@ -234,7 +234,7 @@ class SalsaNextEncoder(nn.Module):
 
         self.avgpool = nn.AdaptiveAvgPool2d((3, 3))
 
-        self.logits = nn.Conv2d(256, self.pred_dim, kernel_size=(3,3))
+        self.logits = nn.Conv2d(256, self.out_dim, kernel_size=(3,3))
 
     def forward(self, x):
 
@@ -251,7 +251,7 @@ class SalsaNextEncoder(nn.Module):
         avg = self.avgpool(down5c)
 
         out = self.logits(avg)
-        out = out.view(-1, self.pred_dim)
+        out = out.view(-1, self.out_dim)
         
         return out
 

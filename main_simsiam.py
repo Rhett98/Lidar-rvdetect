@@ -105,7 +105,7 @@ def main_worker(args):
 
     # create model
     print("=> creating model")
-    model = SimSiam(SalsaNextEncoder(input_size=10, pred_dim=dim), dim, pred_dim)
+    model = SimSiam(SalsaNextEncoder(input_size=10, dim=dim), dim, pred_dim)
 
     # infer learning rate before changing batch size
     init_lr = lr * batch_size / 256
