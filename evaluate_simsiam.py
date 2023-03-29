@@ -35,6 +35,8 @@ def fetch_represent(loader, model):
     labels = None
     batch_num = len(loader)
     for batch_id, data in tqdm(enumerate(loader)):
+        if batch_id == 500:
+            break
         if (batch_id + 1) % 100 == 0:
             print("%d/%d" % (batch_id+1, batch_num))
         pc, label = data
@@ -72,9 +74,14 @@ if __name__ == "__main__":
     hparam = {"model.use_xyz": True, "emb_dims": args.emb_dims, "dropout":args.dropout, "num_points": args.num_points, "k": args.k}
 
     # load model
-    full_model = SimSiam(SalsaNextEncoder(), 1024, 256)
-    model = nn.Sequential(full_model.align, full_model.backbone)
-    model = load_model(args.weight, model)
+    model = SalsaNextEncoder()
+    state_dict = model.state_dict()
+    ckpt = torch.load(args.weight, map_location="cpu")
+    pretrained_dict = ckpt["state_dict"]
+    for key in state_dict:
+        if 'encoder.0.'+key in pretrained_dict:
+            state_dict[key] = pretrained_dict['encoder.0.'+key]
+    model.load_state_dict(state_dict, strict=True)
     model.to(device)
     model.eval()
     
