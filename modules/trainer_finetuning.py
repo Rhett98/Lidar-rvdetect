@@ -245,16 +245,6 @@ class Trainer():
 
         # train for n epochs
         for epoch in range(self.epoch, self.ARCH["train"]["max_epochs"]):
-            # evaluate on validation set
-            print("*" * 80)
-            acc, iou, loss, rand_img,hetero_l = self.validate(val_loader=self.valid_loader,
-                                                        model=self.model,
-                                                        criterion=self.criterion,
-                                                        evaluator=self.evaluator,
-                                                        class_func=self.parser_valid.get_xentropy_class_string,
-                                                        color_fn=self.parser_valid.to_color,
-                                                        save_scans=self.ARCH["train"]["save_scans"])
-
 
             # train for 1 epoch
             acc, iou, loss, update_mean,hetero_l = self.train_epoch(train_loader=self.train_loader,
