@@ -256,17 +256,20 @@ class SalsaNextEncoder(nn.Module):
         return out
 
 class SalsaSeg(nn.Module):
-    def __init__(self, pretrain_path, input_size=10, pred_dim=256, nclasses=3, freeze_base=True):
+    def __init__(self, pretrain_path = None, input_size=10, pred_dim=256, nclasses=3, freeze_base=True):
         super(SalsaSeg, self).__init__()
-        checkpoint = torch.load(pretrain_path)
-        base_model = SalsaNextEncoder(input_size, pred_dim)
-        state_dict = base_model.state_dict()
-        pretrained_dict = checkpoint["state_dict"]
-        for key in state_dict:
-            if 'encoder.0.'+key in pretrained_dict:
-                state_dict[key] = pretrained_dict['encoder.0.'+key]
-        base_model.load_state_dict(state_dict, strict=True)
-        embedding_layers = nn.Sequential(
+        self.nclasses = nclasses
+        self.input_size = input_size
+        if pretrain_path !=None:
+            checkpoint = torch.load(pretrain_path)
+            base_model = SalsaNextEncoder(input_size, pred_dim)
+            state_dict = base_model.state_dict()
+            pretrained_dict = checkpoint["state_dict"]
+            for key in state_dict:
+                if 'encoder.0.'+key in pretrained_dict:
+                    state_dict[key] = pretrained_dict['encoder.0.'+key]
+            base_model.load_state_dict(state_dict, strict=True)
+            embedding_layers = nn.Sequential(
                                         base_model.downCntx,
                                         base_model.downCntx2,
                                         base_model.downCntx3,
@@ -275,23 +278,30 @@ class SalsaSeg(nn.Module):
                                         base_model.resBlock3,
                                         base_model.resBlock4,
                                         base_model.resBlock5
-        )
-        if freeze_base:
-            for param in embedding_layers.parameters():
-                param.requires_grad = False
+            )
+            if freeze_base:
+                for param in embedding_layers.parameters():
+                    param.requires_grad = False
 
-        self.nclasses = nclasses
-        self.input_size = input_size
-        
-        self.downCntx = embedding_layers[0]
-        self.downCntx2 = embedding_layers[1]
-        self.downCntx3 = embedding_layers[2]
+            self.downCntx = embedding_layers[0]
+            self.downCntx2 = embedding_layers[1]
+            self.downCntx3 = embedding_layers[2]
 
-        self.resBlock1 = embedding_layers[3]
-        self.resBlock2 = embedding_layers[4]
-        self.resBlock3 = embedding_layers[5]
-        self.resBlock4 = embedding_layers[6]
-        self.resBlock5 = embedding_layers[7]
+            self.resBlock1 = embedding_layers[3]
+            self.resBlock2 = embedding_layers[4]
+            self.resBlock3 = embedding_layers[5]
+            self.resBlock4 = embedding_layers[6]
+            self.resBlock5 = embedding_layers[7]
+        else:
+            self.downCntx = ResContextBlock(self.input_size, 32)
+            self.downCntx2 = ResContextBlock(32, 32)
+            self.downCntx3 = ResContextBlock(32, 32)
+
+            self.resBlock1 = ResBlock(32, 2 * 32, 0.2, pooling=True, drop_out=False)
+            self.resBlock2 = ResBlock(2 * 32, 2 * 2 * 32, 0.2, pooling=True)
+            self.resBlock3 = ResBlock(2 * 2 * 32, 2 * 4 * 32, 0.2, pooling=True)
+            self.resBlock4 = ResBlock(2 * 4 * 32, 2 * 4 * 32, 0.2, pooling=True)
+            self.resBlock5 = ResBlock(2 * 4 * 32, 2 * 4 * 32, 0.2, pooling=False)
 
         self.upBlock1 = UpBlock(2 * 4 * 32, 4 * 32, 0.2)
         self.upBlock2 = UpBlock(4 * 32, 4 * 32, 0.2)
