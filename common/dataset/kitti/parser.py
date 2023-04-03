@@ -307,6 +307,7 @@ class SemanticKitti(Dataset):
             else:
                 unproj_labels = []
 
+
             # get points and labels
             proj_range = torch.from_numpy(scan.proj_range).clone()
             proj_xyz = torch.from_numpy(scan.proj_xyz).clone()
@@ -659,7 +660,7 @@ if __name__ == '__main__':
     import yaml
     from tqdm import tqdm
     ARCH = yaml.safe_load(open('config/simsiam.yml', 'r'))
-    DATA = yaml.safe_load(open('config/labels/semantic-kitti-mos.yaml', 'r'))
+    DATA = yaml.safe_load(open('config/labels/local-test.yaml', 'r'))
     data = '../dataset'
     # DATA = yaml.safe_load(open('config/labels/kitti-toy.yaml', 'r'))
     # data = '/home/robot/Repository/data_odometry_velodyne/dataset'
@@ -678,8 +679,8 @@ if __name__ == '__main__':
                             workers=ARCH["train"]["workers"],
                             gt=True,
                             shuffle_train=True)
-    train_loader = train_dataset.get_train_set()
-    assert len(train_loader) > 0
-    for i, (in_vol, proj_mask, proj_labels, _, path_seq, path_name, _, _, _, _, _, _, _, _, _) in tqdm(enumerate(train_loader)):
-        a = i
+    loader = train_dataset.get_train_set()
+    assert len(loader) > 0
+    for i, (proj_in, proj_mask,proj_labels, _, path_seq, path_name, p_x, p_y, proj_range, unproj_range, _, _, _, _, npoints) in enumerate(loader):
+        print(proj_in.shape, proj_mask.shape, proj_labels.shape, path_seq, path_name ,proj_range.shape, unproj_range.shape)
         

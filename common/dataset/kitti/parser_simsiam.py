@@ -275,42 +275,7 @@ class KittiRV(Dataset):
 
             # open and obtain (transformed) scan
             scan.open_scan(scan_file, index_pose, current_pose, if_transform=self.transform_mod)
-
-        #     if self.gt:
-        #         scan.open_label(label_file)
-        #         # map unused classes to used classes (also for projection)
-        #         scan.sem_label = self.map(scan.sem_label, self.learning_map)
-        #         scan.proj_sem_label = self.map(scan.proj_sem_label, self.learning_map)
-
-        #     # get points and labels
-        #     proj_range = torch.from_numpy(scan.proj_range).clone()
-        #     # proj_xyz = torch.from_numpy(scan.proj_xyz).clone()
-        #     # proj_remission = torch.from_numpy(scan.proj_remission).clone()
-        #     proj_mask = torch.from_numpy(scan.proj_mask)
-        #     if self.gt:
-        #         proj_labels = torch.from_numpy(scan.proj_sem_label).clone()
-        #         proj_labels = proj_labels * proj_mask
-        #     else:
-        #         proj_labels = []
-
-        #     proj = torch.cat([proj_range.unsqueeze(0).clone()])
-        #     # normal
-        #     proj = (proj - self.sensor_img_means[0]) / self.sensor_img_stds[0]
-        #     # cat old projection
-        #     proj_full = torch.cat([proj_full, proj])
-        #     # if self.gt:
-        #         # proj_labels = torch.cat([proj_labels.unsqueeze(0).clone()])
-        #         # proj_labels_full = torch.cat([proj_labels_full, proj_labels])
-
-
-        # if self.use_normal:
-        #     proj_full = torch.cat([proj_full, torch.from_numpy(scan.normal_map).clone().permute(2, 0, 1)]) 
-
-        # proj_cat = proj_full * proj_mask.float()
-        # if self.gt:
-        #     # return proj_cat, proj_labels_full
-        #     return proj_cat, proj_labels
-        # return proj_cat
+            
             if self.gt:
                     scan.open_label(label_file)
                     # map unused classes to used classes (also for projection)
@@ -352,7 +317,7 @@ class KittiRV(Dataset):
             proj = (proj - self.sensor_img_means[:, None, None]) / self.sensor_img_stds[:, None, None]
 
             proj_full = torch.cat([proj_full, proj])
-            proj_range = torch.cat([proj_range.unsqueeze(0).clone()])
+            # proj_range = torch.cat([proj_range.unsqueeze(0).clone()])
 
             if self.use_residual:
                 for i in range(self.n_input_scans):
@@ -368,10 +333,13 @@ class KittiRV(Dataset):
                 proj_full = torch.cat([proj_full, torch.unsqueeze(eval("proj_residuals_" + str(i+1)), 0)])
 
         proj_full = proj_full * proj_mask.float()
-        if self.gt:
-            # return proj_cat, proj_labels_full
-            return proj_full, proj_labels
-        return proj_full
+        # get name and sequence
+        path_norm = os.path.normpath(scan_file)
+        path_split = path_norm.split(os.sep)
+        path_seq = path_split[-3]
+        path_name = path_split[-1].replace(".bin", ".label")
+        return proj_full, proj_mask, proj_labels, unproj_labels, path_seq, path_name, proj_x, proj_y, proj_range, \
+                     unproj_range, proj_xyz, unproj_xyz, proj_remission, unproj_remissions, unproj_n_points
 
         
 
@@ -503,8 +471,8 @@ if __name__ == '__main__':
     import yaml
     from tqdm import tqdm
     ARCH = yaml.safe_load(open('config/simsiam.yml', 'r'))
-    DATA = yaml.safe_load(open('config/labels/semantic-kitti-mos.yaml', 'r'))
-    data = '/home/robot/Repository/dataset'
+    DATA = yaml.safe_load(open('config/labels/local-test.yaml', 'r'))
+    data = '../dataset'
     # DATA = yaml.safe_load(open('config/labels/kitti-toy.yaml', 'r'))
     # data = '/home/robot/Repository/data_odometry_velodyne/dataset'
     train_dataset = KittiRV('train', ARCH, DATA, data, True, False, True)
@@ -515,5 +483,5 @@ if __name__ == '__main__':
                                                 pin_memory=False,
                                                 drop_last=True)
     assert len(train_loader) > 0
-    for i, (proj_full, p_label) in tqdm(enumerate(train_loader)):
-        a =i
+    for i, (proj_in, proj_mask,proj_labels, _, path_seq, path_name, p_x, p_y, proj_range, unproj_range, _, _, _, _, npoints) in enumerate(train_loader):
+        print(proj_in.shape, proj_mask.shape, proj_labels.shape, path_seq, path_name ,proj_range.shape, unproj_range.shape)
