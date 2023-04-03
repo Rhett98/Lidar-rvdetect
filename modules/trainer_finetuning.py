@@ -121,8 +121,7 @@ class Trainer():
         print("Loss weights from content: ", self.loss_w.data)
 
         if self.path is not None:
-            self.model = SalsaSeg(self.path, 10, 256)
-            self.model.half()
+            self.model = SalsaSeg(self.path, 10, 256, freeze_base=False)
         else:
             raise ValueError("THE PRETRAIN MODEL doesn't exist! Exiting...")
 
@@ -345,25 +344,19 @@ class Trainer():
         model.train()
 
         end = time.time()
-        for i, (in_vol, proj_labels) in tqdm(enumerate(train_loader)):
+        for i, (in_vol, _, proj_labels, _, _, _, p_x, p_y, _, _, _, _, _, _, _) in tqdm(enumerate(train_loader)):
             # measure data loading time
             self.data_time_t.update(time.time() - end)
             in_vol,_ = torch.split(in_vol, 10, dim=1)
-            in_vol = in_vol.cuda().half()
-            # print(proj_labels)
+            in_vol = in_vol.cuda()
             proj_labels = proj_labels.cuda().long()
-            # print(proj_labels)
+            
             # compute output
-            with autocast():
-                output = model(in_vol)
-                loss_m = criterion(torch.log(output.clamp(min=1e-8)), proj_labels.long()) + self.ls(output, proj_labels.long())
+            output = model(in_vol)
+            loss_m = criterion(torch.log(output.clamp(min=1e-8)), proj_labels.long()) + self.ls(output, proj_labels.long())
 
             optimizer.zero_grad()
-            if self.n_gpus > 1:
-                idx = torch.ones(self.n_gpus).cuda()
-                loss_m.backward(idx)
-            else:
-                loss_m.backward()
+            loss_m.backward()
             optimizer.step()
 
             # measure accuracy and record loss
@@ -371,7 +364,7 @@ class Trainer():
             with torch.no_grad():
                 evaluator.reset()
                 argmax = output.argmax(dim=1)
-                evaluator.addBatch(argmax.to(torch.int64), proj_labels)
+                evaluator.addBatch(argmax, proj_labels)
                 accuracy = evaluator.getacc()
                 jaccard, class_jaccard = evaluator.getIoU()
 
@@ -476,20 +469,19 @@ class Trainer():
             end = time.time()
             for i, (in_vol, proj_labels) in tqdm(enumerate(val_loader)):
                 in_vol,_ = torch.split(in_vol, 10, dim=1)
-                in_vol = in_vol.cuda().half()
+                in_vol = in_vol.cuda()
                 proj_labels = proj_labels.cuda().long()
 
                 # compute output
-                with autocast():
-                    output = model(in_vol)
-                    log_out = torch.log(output.clamp(min=1e-8)).to(torch.float32)
-                    jacc = self.ls(output, proj_labels.long())
-                    wce = criterion(log_out.to(torch.float32), proj_labels.long())
-                    loss = wce + jacc
+                output = model(in_vol)
+                log_out = torch.log(output.clamp(min=1e-8))
+                jacc = self.ls(output, proj_labels.long())
+                wce = criterion(log_out, proj_labels.long())
+                loss = wce + jacc
 
                 # measure accuracy and record loss
                 argmax = output.argmax(dim=1)
-                evaluator.addBatch(argmax.to(torch.int64), proj_labels)
+                evaluator.addBatch(argmax, proj_labels)
                 losses.update(loss.mean().item(), in_vol.size(0))
                 jaccs.update(jacc.mean().item(),in_vol.size(0))
 
