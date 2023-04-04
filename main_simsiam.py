@@ -23,7 +23,7 @@ import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
-from torch.cuda.amp import autocast, grad_scaler
+# from torch.cuda.amp import autocast, grad_scaler
 from tensorboardX import SummaryWriter as Logger
 
 import __init__ as booger
@@ -112,13 +112,12 @@ def main_worker(args):
 
     torch.cuda.set_device(gpu)
     model = model.cuda(gpu)
-    model.half()
     # print(model) # print model 
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("Total of Trainable Parameters: {}".format(pytorch_total_params))
 
     # define loss function (criterion) and optimizer
-    criterion = nn.CosineSimilarity(dim=1).cuda(0).half()
+    criterion = nn.CosineSimilarity(dim=1).cuda(0)
 
     if fix_pred_lr:
         optim_params = [{'params': model.module.encoder.parameters(), 'fix_lr': False},
@@ -206,16 +205,15 @@ def train(train_loader, model, criterion, optimizer, epoch, max_epoch, logger):
 
         image_0, image_1 = torch.split(images, 10, dim=1)
 
-        image_0 = image_0.cuda(0, non_blocking=True).half()
-        image_1 = image_1.cuda(0, non_blocking=True).half()
+        image_0 = image_0.cuda(0, non_blocking=True)
+        image_1 = image_1.cuda(0, non_blocking=True)
 
-        with autocast():
-            # compute output and loss
-            # p1, p2, z1, z2 = model(x1=image_0, x2=image_1)
-            # loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
-            p1, z2 = model(x1=image_0, x2=image_1)
-            loss = - criterion(p1, z2).mean()
-            losses.update(loss.item(), image_0.size(0))
+        # compute output and loss
+        # p1, p2, z1, z2 = model(x1=image_0, x2=image_1)
+        # loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
+        p1, z2 = model(x1=image_0, x2=image_1)
+        loss = - criterion(p1, z2).mean()
+        losses.update(loss.item(), image_0.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
