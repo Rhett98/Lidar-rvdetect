@@ -467,7 +467,7 @@ class Trainer():
 
         with torch.no_grad():
             end = time.time()
-            for i, (in_vol, proj_labels) in tqdm(enumerate(val_loader)):
+            for i, (in_vol, _, proj_labels, _, _, _, p_x, p_y, _, _, _, _, _, _, _) in tqdm(enumerate(val_loader)):
                 in_vol,_ = torch.split(in_vol, 10, dim=1)
                 in_vol = in_vol.cuda()
                 proj_labels = proj_labels.cuda().long()
