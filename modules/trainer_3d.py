@@ -367,7 +367,7 @@ class Trainer():
                 #proj_mask = proj_mask.cuda()
             if self.gpu:
                 proj_labels = proj_labels.cuda().long()
-            print(in_vol.shape)
+
             # compute output
             if self.uncertainty:
                 output = model(in_vol)
