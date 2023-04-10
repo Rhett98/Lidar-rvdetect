@@ -2,7 +2,6 @@
 
 ## train
 python train.py -d ../dataset -ac config/salsanext_mos.yml
-python train_dual.py -d ../dataset -ac config/dualrv.yml
 
 ## infer
 python infer.py -d ../dataset -m data/model_salsanext_residual_1 -l log -s valid
