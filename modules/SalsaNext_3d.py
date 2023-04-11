@@ -24,8 +24,11 @@ class DepthWiseConv2D(nn.Module):
                                     stride=1,
                                     padding=0,
                                     groups=1)
+        self.act = nn.LeakyReLU()
+        self.bn = nn.BatchNorm2d(in_ch)
     def forward(self,input):
         out = self.depth_conv(input)
+        out = self.bn(self.act(out))
         out = self.point_conv(out)
         return out
 
